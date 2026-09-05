@@ -1,0 +1,67 @@
+{
+  "at": "2026-09-05T03:05:08.940776+00:00",
+  "checks": [
+    {
+      "check": "initialize_model_list",
+      "ok": true,
+      "default_models": [
+        "gpt-6-astra"
+      ]
+    },
+    {
+      "check": "thread_start",
+      "ok": true,
+      "thread_id": "01a06f86-f42c-7542-b35c-38be63f5cea4",
+      "model": "gpt-6-astra"
+    },
+    {
+      "status": "completed",
+      "total_s": 28.467,
+      "first_agent_delta_s": 19.679,
+      "messages": [
+        "I’ll read fixture.txt.\n",
+        "a904e1d6ca1879b9"
+      ],
+      "item_types": [
+        "userMessage",
+        "agentMessage",
+        "commandExecution",
+        "agentMessage"
+      ],
+      "error": null,
+      "check": "real_file_tool",
+      "ok": true
+    },
+    {
+      "status": "interrupted",
+      "total_s": 0.482,
+      "first_agent_delta_s": null,
+      "messages": [],
+      "item_types": [
+        "userMessage"
+      ],
+      "error": null,
+      "check": "interrupt",
+      "ok": true
+    },
+    {
+      "check": "resume_after_process_restart",
+      "ok": true
+    },
+    {
+      "status": "completed",
+      "total_s": 10.598,
+      "first_agent_delta_s": 10.042,
+      "messages": [
+        "a904e1d6ca1879b9"
+      ],
+      "item_types": [
+        "userMessage",
+        "agentMessage"
+      ],
+      "error": null,
+      "check": "history_recall_after_restart",
+      "ok": true
+    }
+  ]
+}

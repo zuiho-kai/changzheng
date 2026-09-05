@@ -1,0 +1,9 @@
+{
+  "name": "changzheng-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first desktop companion",
+  "main": "desktop/main.cjs",
+  "scripts": {"desktop": "electron ."},
+  "devDependencies": {"electron": "^37.4.0"}
+}

@@ -1,0 +1,5 @@
+{
+  "fresh_process_semantic_memory": true,
+  "unrelated_query_not_recalled": true,
+  "note": "The first .50 threshold missed this paraphrase (cosine .449); .43 heuristic calibrated against a small synthetic set. Not a broad retrieval benchmark."
+}

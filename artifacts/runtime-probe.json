@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "real_semantic_recall": true,
+    "private_memory_excluded_live": true,
+    "real_tts_decodable": true,
+    "interrupted_history_exact_prefix": true,
+    "actual_next_request_exact_spoken_prefix": true,
+    "correction_recalled": true,
+    "deleted_not_recalled": true,
+    "real_asr_roundtrip": true,
+    "codex_actual_file_read": true
+  },
+  "metrics": {
+    "first_turn": {
+      "received_at": 1788580598.230572,
+      "source": "user",
+      "recall_ms": 115,
+      "model_ttft_ms": 228
+    },
+    "asr_ms": 991
+  },
+  "codex_task_status": "completed"
+}

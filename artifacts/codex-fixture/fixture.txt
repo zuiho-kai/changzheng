@@ -1,0 +1,2 @@
+Synthetic integration fixture.
+verification_word=a904e1d6ca1879b9

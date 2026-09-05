@@ -1,0 +1,10 @@
+{
+  "checks": {
+    "actual_command_started": true,
+    "actual_turn_interrupted": true,
+    "resumed_task_completed_read": true,
+    "same_thread_resumed": true
+  },
+  "status": "completed",
+  "note": "Real read-only command interrupted, same task resumed and fixture read. Does not establish exactly-once behavior for arbitrary side effects."
+}

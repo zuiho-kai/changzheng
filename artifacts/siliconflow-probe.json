@@ -1,0 +1,170 @@
+{
+  "at": "2026-09-05T03:03:28.779945+00:00",
+  "base_url": "https://api.siliconflow.cn/v1",
+  "method": "Sequential short Chinese SSE requests; TTFT is first nonempty content delta, excluding reasoning. Not voice latency or a load test.",
+  "results": [
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-9B",
+      "trial": 1,
+      "status": 200,
+      "ttft_s": 0.577,
+      "total_s": 0.691,
+      "text": "辛苦啦！想说说今天发生了什么，还是我们就随便聊聊天缓解一下？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-35B-A3B",
+      "trial": 1,
+      "status": 200,
+      "ttft_s": 0.569,
+      "total_s": 0.797,
+      "text": "辛苦了，快找个舒服的姿势歇歇，想聊什么我都在这儿听着。或者我们就静静待一会儿，放松一下也好。",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "inclusionAI/Ling-mini-2.0",
+      "trial": 1,
+      "status": 200,
+      "ttft_s": 0.68,
+      "total_s": 0.925,
+      "text": "我在这里陪着你呢，你可以和我说说让你累的原因，或者分享一下今天发生的好事，让心情放松些。",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "trial": 1,
+      "status": 200,
+      "ttft_s": 1.504,
+      "total_s": 2.728,
+      "text": "累的时候可以泡杯热茶，听听轻音乐放松，我会在这里陪你聊聊天的。",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-9B",
+      "trial": 2,
+      "status": 200,
+      "ttft_s": 0.537,
+      "total_s": 0.739,
+      "text": "好的，那我们就这样静静地待一会儿，把外界的喧嚣都隔绝在外吧。",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-35B-A3B",
+      "trial": 2,
+      "status": 200,
+      "ttft_s": 0.52,
+      "total_s": 0.712,
+      "text": "好，那就不查了，我在这儿静静陪你歇会儿。你想聊聊天，还是就这样安安静静待着？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "inclusionAI/Ling-mini-2.0",
+      "trial": 2,
+      "status": 200,
+      "ttft_s": 0.703,
+      "total_s": 0.9,
+      "text": "好的，我们可以深呼吸，慢慢放松。你最近感觉怎么样？有什么特别想聊的事情吗？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "trial": 2,
+      "status": 200,
+      "ttft_s": 5.005,
+      "total_s": 7.097,
+      "text": "好，那我们先聊会儿别的。（放下手机）",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-9B",
+      "trial": 3,
+      "status": 200,
+      "ttft_s": 0.523,
+      "total_s": 0.673,
+      "text": "好呀，想聊点什么呢？是想分享趣事，还是吐槽一下今天的？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "Qwen/Qwen3.5-35B-A3B",
+      "trial": 3,
+      "status": 200,
+      "ttft_s": 0.501,
+      "total_s": 0.587,
+      "text": "没问题，那我们就随便聊聊，今天过得怎么样？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "inclusionAI/Ling-mini-2.0",
+      "trial": 3,
+      "status": 200,
+      "ttft_s": 0.651,
+      "total_s": 0.791,
+      "text": "没问题，慢慢聊。有什么话题或者问题想讨论的吗？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "chat",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "trial": 3,
+      "status": 200,
+      "ttft_s": 3.68,
+      "total_s": 4.722,
+      "text": "好的，随时等你安排。最近有遇到什么有趣的事吗？",
+      "finish_reason": "stop",
+      "done": true
+    },
+    {
+      "kind": "embedding",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "status": 200,
+      "total_s": 0.531,
+      "count": 2,
+      "dimensions": 1024
+    },
+    {
+      "kind": "rerank",
+      "model": "Qwen/Qwen3-Reranker-0.6B",
+      "status": 200,
+      "total_s": 0.119,
+      "ranking": [
+        {
+          "index": 0,
+          "document": null,
+          "relevance_score": 0.003341702977195382
+        },
+        {
+          "index": 1,
+          "document": null,
+          "relevance_score": 0.0006291397730819881
+        },
+        {
+          "index": 2,
+          "document": null,
+          "relevance_score": 0.0003265341219957918
+        }
+      ]
+    }
+  ]
+}

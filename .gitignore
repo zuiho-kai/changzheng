@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+artifacts/schema/
+.reference/
+.venv/
+node_modules/
+data/
+dist/
+.pytest_cache/
+artifacts/runtime-*/
+*.log

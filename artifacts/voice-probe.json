@@ -1,0 +1,35 @@
+{
+  "at": "2026-09-05T03:06:53.252782+00:00",
+  "checks": [
+    {
+      "check": "asr_model_discovery",
+      "models": [
+        "FunAudioLLM/SenseVoiceSmall"
+      ]
+    },
+    {
+      "check": "tts",
+      "ok": true,
+      "model": "FunAudioLLM/CosyVoice2-0.5B",
+      "voice": "FunAudioLLM/CosyVoice2-0.5B:claire",
+      "first_1024_bytes_s": 0.247,
+      "total_s": 0.653,
+      "bytes": 255534,
+      "audio": {
+        "sample_rate": 24000,
+        "channels": 1,
+        "duration_s": 5.32
+      },
+      "file": "artifacts/voice-sample.wav",
+      "note": "First network chunk can include WAV header; not measured speaker onset. The utterance describes target behavior, not implemented functionality. Streaming WAV header length was finalized from received PCM; the raw stream file is retained."
+    },
+    {
+      "check": "synthetic_audio_asr",
+      "ok": true,
+      "model": "FunAudioLLM/SenseVoiceSmall",
+      "total_s": 0.454,
+      "text": "我在呢，你可以随时打断我，等你说完，我们再继续刚才的事情。",
+      "note": "Recognition of synthesized audio; no real microphone, echo cancellation, or interruption test."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "natural_playback_ack": true,
+    "stopped_segment_not_committed": true,
+    "audio_source_actually_stopped": true,
+    "real_next_context_uses_played_prefix": true,
+    "synthetic_mic_vad_real_asr_user_message": true,
+    "spoken_preference_auto_memory": true,
+    "no_browser_errors": true
+  },
+  "boundary": "Synthetic MediaStream into real browser VAD, real remote ASR/TTS/chat. No physical microphone or acoustic latency measurement.",
+  "metrics": {
+    "received_at": 1788581566.8532257,
+    "source": "user",
+    "recall_ms": 266,
+    "model_ttft_ms": 285,
+    "audible_wait_ms": 1252
+  },
+  "errors": []
+}

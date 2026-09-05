@@ -8,16 +8,23 @@
   const taskNames = {queued: '等待开始', running: '正在进行', pausing: '正在暂停', completed: '已完成', paused: '已暂停', failed: '需要处理'};
   let state = {history: [], memories: [], tasks: [], settings: {}, scene: 'chat'};
   let ws, reconnect, connected = false, turnId = null, pendingRow = null, filter = 'all', stopPending = false;
-  let audioContext, audioEpoch = 0, audioQueue = [], audioPlaying = false, activeSource = null;
+  let audioContext, audioEpoch = 0, audioQueue = [], audioPlaying = false, activeSource = null, activePlayback = null;
   let completedSegments = [], firstPlaybackTurn = null, microphone = null, micSpeaking = false;
   let toastTimer, bubbleTimer, closing = false, currentPage = 'home';
   let inputRevision = 0, transcriptBatch = [], transcriptFlushTimer;
   let micStarting = false, micStartToken = 0;
+  let memoryJobTimer;
+  const inputActivities = new Set();
   if (observer) {document.body.classList.add('overlay'); document.documentElement.classList.add('overlay');}
 
   const safe = (value) => String(value ?? '');
   function element(tag, cls, text) { const node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; }
-  function toast(message) { if (observer) return; $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 6000); }
+  function toast(message, action) {
+    if (observer) return;
+    const node = $('#toast'); node.replaceChildren(element('span', '', message));
+    if (action) {const button = element('button', 'toast-action', action.label); button.onclick = () => {action.run(); node.hidden = true;}; node.append(button);}
+    node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => {node.hidden = true;}, 8000);
+  }
   async function api(path, options = {}) {
     const config = {...options};
     if (config.body && !(config.body instanceof Blob) && !(config.body instanceof ArrayBuffer)) {config.headers = {'Content-Type': 'application/json', ...config.headers}; config.body = JSON.stringify(config.body);}
@@ -27,6 +34,13 @@
     return data;
   }
   function send(data) { if (ws?.readyState === WebSocket.OPEN) {ws.send(JSON.stringify(data)); return true;} toast('连接尚未就绪，请稍后再试。'); return false; }
+  function inputActivity(reason, active) {
+    const before = inputActivities.size > 0;
+    if (active) inputActivities.add(reason); else inputActivities.delete(reason);
+    if (!observer && connected && before !== (inputActivities.size > 0)) send({type:'input_activity', active:inputActivities.size > 0});
+  }
+  function clearInputActivity() {inputActivities.clear(); if (!observer && connected) send({type:'input_activity',active:false});}
+  setInterval(() => {if (!observer && connected && inputActivities.size) send({type:'input_activity',active:true});}, 60000);
   async function ensureAudio() { if (!audioContext) audioContext = new AudioContext(); if (audioContext.state !== 'running') await audioContext.resume(); return audioContext; }
   function setStatus(status) {
     const actual = micSpeaking ? 'listening' : status;
@@ -35,17 +49,34 @@
     $('#pet-status').textContent = statusNames[actual] || actual;
   }
   function bubble(text, persistent = false) { clearTimeout(bubbleTimer); $('#speech-bubble').textContent = text; $('#speech-bubble').hidden = !text; if (!persistent) bubbleTimer = setTimeout(() => {$('#speech-bubble').hidden = true;}, 6500); }
+  function outputTime(context) {
+    // This is the browser's estimated device output position, not proof that a
+    // person heard the audio. Never use render time as device output time.
+    try {
+      const stamp = context.getOutputTimestamp?.();
+      if (Number.isFinite(stamp?.contextTime) && stamp.contextTime >= 0 && stamp.contextTime <= context.currentTime) return stamp.contextTime;
+    } catch {}
+    return Math.max(0, context.currentTime - (context.baseLatency || 0) - (context.outputLatency || 0));
+  }
+  function playbackProgress() {
+    const playing = activePlayback;
+    if (!playing || !playing.started || !playing.segment.boundaries?.length || playing.epoch !== audioEpoch || playing.segment.turn_id !== turnId) return null;
+    const seconds = Math.min(playing.duration, Math.max(0, outputTime(playing.context) - playing.startTime));
+    return {turn_id: playing.segment.turn_id, id: playing.segment.id, seconds};
+  }
   function cancelPlayback() {
     audioEpoch += 1; audioQueue = []; audioPlaying = false;
+    activePlayback?.cancel();
     if (activeSource) {activeSource.onended = null; try { activeSource.stop(); } catch {} try { activeSource.disconnect(); } catch {} activeSource = null;}
     $('#speech-bubble').hidden = true; document.body.classList.remove('speaking');
   }
   function interrupt(preserveVoice = false) {
-    if (preserveVoice !== true) {inputRevision++; transcriptBatch = []; clearTimeout(transcriptFlushTimer);}
+    if (preserveVoice !== true) {inputRevision++; transcriptBatch = []; clearTimeout(transcriptFlushTimer); clearInputActivity();}
+    const progress = playbackProgress(); // Capture device position before stop/reset.
     cancelPlayback();
     // A generation that arrives after local Stop must never restart playback.
     turnId = null; stopPending = true;
-    if (!observer) send({type: 'interrupt', completed: completedSegments.splice(0)});
+    if (!observer) send({type: 'interrupt', completed: completedSegments.splice(0), ...(progress ? {progress} : {})});
     setStatus('idle');
   }
   function ack(segment) {
@@ -74,21 +105,40 @@
         if (epoch !== audioEpoch || segment.turn_id !== turnId) break;
         await new Promise((resolve, reject) => {
           const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination); activeSource = source;
-          source.onended = () => {
+          let settled = false, renderedAt = null, endPoll, progressPoll;
+          const playing = {segment, context, epoch, duration:buffer.duration, startTime:context.currentTime, started:false, cancel:() => finish(false)};
+          activePlayback = playing;
+          function finish(commit, error) {
+            if (settled) return; settled = true;
+            clearInterval(endPoll); clearInterval(progressPoll); source.onended = null;
+            if (!commit) {try {source.stop();} catch {}}
             source.disconnect();
             if (activeSource === source) activeSource = null;
-            if (epoch === audioEpoch && segment.turn_id === turnId) ack(segment);
-            resolve();
+            if (activePlayback === playing) activePlayback = null;
+            if (commit && epoch === audioEpoch && segment.turn_id === turnId) ack(segment);
+            if (error) reject(error); else resolve();
+          }
+          source.onended = () => {
+            // onended means rendering is done; the device may still be playing.
+            renderedAt = performance.now();
+            checkOutputEnd();
           };
-          // Cancellation stops the source and disconnects onended. Resolve the
-          // local await as well; its continuation is guarded by the epoch.
-          const poll = setInterval(() => {if (epoch !== audioEpoch) {clearInterval(poll); resolve();}}, 50);
-          const ended = source.onended;
-          source.onended = () => {clearInterval(poll); ended();};
+          function checkOutputEnd() {
+            if (epoch !== audioEpoch || segment.turn_id !== turnId) {finish(false); return;}
+            if (renderedAt === null) return;
+            if (context.state === 'running' && outputTime(context) >= playing.startTime + buffer.duration) {finish(true); return;}
+            if (performance.now() - renderedAt > 5000) finish(false, new Error('音频输出暂时停滞，请重试。'));
+          }
           try {
-            source.start(); bubble(segment.text, true); setStatus('speaking');
+            source.start(playing.startTime); playing.started = true;
+            endPoll = setInterval(checkOutputEnd, 20);
+            if (segment.boundaries?.length) progressPoll = setInterval(() => {
+              const progress = playbackProgress();
+              if (activePlayback === playing && context.state === 'running' && progress?.seconds > 0) send({type:'playback_progress', ...progress});
+            }, 80);
+            bubble(segment.text, true); setStatus('speaking');
             if (firstPlaybackTurn !== turnId) {firstPlaybackTurn = turnId; send({type: 'playback_started', turn_id: turnId});}
-          } catch (error) {clearInterval(poll); source.disconnect(); reject(error);}
+          } catch (error) {finish(false, error);}
         });
       }
     } catch (error) {
@@ -135,7 +185,9 @@
     $('#setting-memory').checked = state.settings.auto_memory !== false;
     if (state.settings.fast_model && ![...$('#setting-model').options].some(x => x.value === state.settings.fast_model)) $('#setting-model').add(new Option(state.settings.fast_model, state.settings.fast_model));
     $('#setting-model').value = state.settings.fast_model || 'Qwen/Qwen3.5-35B-A3B';
-    $('#setting-voice').value = state.settings.voice || 'claire';
+    const voice = state.settings.voice || 'claire';
+    if (![...$('#setting-voice').options].some(option => option.value === voice)) $('#setting-voice').add(new Option(voice.startsWith('local:') ? '本地 · ' + voice.slice(6) : voice, voice));
+    $('#setting-voice').value = voice; voiceHint();
     $('#setting-cwd').value = state.settings.cwd || '';
     $('#key-state').textContent = state.key_configured ? '密钥已配置。留空即可继续使用。' : '填写 SiliconFlow 密钥后，就可以开始聊天。';
   }
@@ -150,7 +202,7 @@
         if (!observer && event.turn_id === turnId) pendingRow = addMessage({id: event.turn_id, role: 'assistant', content: event.heard}, true);
         break;
       case 'turn_finished':
-        if (event.interrupted) cancelPlayback();
+        if (event.interrupted && event.turn_id === turnId) cancelPlayback();
         if (!observer && event.heard) {
           const message = {id: event.turn_id, role: 'assistant', content: event.heard};
           if (!state.history.some(x => x.id === message.id)) state.history.push(message);
@@ -158,7 +210,7 @@
           if (event.interrupted && !row.querySelector('.interrupted-label')) row.append(element('span', 'interrupted-label', '已打断 · 未播出的部分已丢弃'));
         }
         if (event.turn_id === turnId) {turnId = null; pendingRow = null;}
-        if (!event.interrupted) bubble(event.heard || '');
+        if (!event.interrupted && (!turnId || event.turn_id === turnId)) bubble(event.heard || '');
         if (event.metrics && !observer) {
           const parts = [];
           if (event.metrics.model_ttft_ms != null) parts.push(`首字 ${event.metrics.model_ttft_ms} ms`);
@@ -172,7 +224,13 @@
         $('#recall-hint').textContent = '✧ 想起了 ' + event.memories.map(x => x.content).join(' · ');
         $('#recall-hint').title = $('#recall-hint').textContent; break;
       case 'memories_updated': state.memories = event.memories; renderMemories(); break;
-      case 'task_updated': {const index = state.tasks.findIndex(x => x.id === event.task.id); if (index >= 0) state.tasks[index] = event.task; else state.tasks.unshift(event.task); renderTasks(); break;}
+      case 'task_updated': {
+        const index = state.tasks.findIndex(x => x.id === event.task.id), previous = index >= 0 ? state.tasks[index].status : null;
+        if (index >= 0) state.tasks[index] = event.task; else state.tasks.unshift(event.task);
+        renderTasks();
+        if (previous !== event.task.status && ['completed','failed'].includes(event.task.status)) toast(event.task.status === 'completed' ? '后台任务已完成，可以查看结果了。' : '后台任务需要处理，查看详情后可继续。', {label:'查看任务 ↗',run:() => {page('tasks'); $('#task-list').querySelector(`[data-task-id="${CSS.escape(event.task.id)}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});}});
+        break;
+      }
       case 'task_progress': {const task = state.tasks.find(x => x.id === event.task_id); if (task) {task.summary = event.text; renderTasks();} break;}
       case 'approval': showApproval(event); break;
       case 'live_batch': $('#live-batch-state').textContent = `本次合并 ${event.selected} 条 · 跳过 ${event.dropped} 条`; break;
@@ -181,7 +239,7 @@
   }
   function connect() {
     ws = new WebSocket(`ws://${location.host}/ws${observer ? '?role=observer' : ''}`);
-    ws.onopen = () => {connected = true; $('.connection-dot').classList.add('online'); $('#connection').textContent = '已连接';};
+    ws.onopen = () => {connected = true; $('.connection-dot').classList.add('online'); $('#connection').textContent = '已连接'; if (!observer && inputActivities.size) send({type:'input_activity',active:true});};
     ws.onmessage = (message) => {try {onEvent(JSON.parse(message.data));} catch (error) {console.error('Event handling failed', error);}};
     ws.onclose = (event) => {
       connected = false; cancelPlayback(); turnId = null; $('.connection-dot').classList.remove('online'); $('#connection').textContent = '未连接';
@@ -192,15 +250,56 @@
   async function submitMessage(text, fromMic = false) {
     text = text.trim(); if (!text || !connected) {if (!connected) toast('小征还没连接好，请稍后再试。'); return;}
     await ensureAudio().catch(() => {});
-    if (!fromMic) {inputRevision++; transcriptBatch = []; clearTimeout(transcriptFlushTimer);}
+    if (!fromMic) {inputRevision++; transcriptBatch = []; clearTimeout(transcriptFlushTimer); inputActivity('transcription',false);}
     interrupt(true);
-    if (send({type: 'message', text, voice: state.settings.audio_enabled !== false})) $('#message').value = '';
+    if (send({type: 'message', text, voice: state.settings.audio_enabled !== false})) {$('#message').value = ''; inputActivity('keyboard',false); if (fromMic) inputActivity('transcription',false);}
+  }
+  function voiceHint() {
+    $('#voice-timing-hint').textContent = $('#setting-voice').value.startsWith('local:') ? '本地声音支持按引擎时间标记保留打断前的内容，不需要云端合成。' : '云端声音在短句播完后确认；打断时，正在播放的短句会保守丢弃。';
+  }
+  async function loadVoices() {
+    try {
+      const voices = await api('/api/voices'), select = $('#setting-voice'), selected = select.value || state.settings.voice || 'claire';
+      select.querySelector('optgroup[data-local]')?.remove();
+      const local = element('optgroup'); local.label = '本地 · Windows 声音'; local.dataset.local = 'true';
+      for (const voice of voices.local || []) {
+        const value = 'local:' + voice.name;
+        [...select.options].filter(option => option.value === value).forEach(option => option.remove());
+        local.append(new Option(`${voice.name}${voice.culture ? ' · ' + voice.culture : ''}`, value));
+      }
+      if (local.children.length) select.append(local);
+      select.value = selected; voiceHint();
+    } catch {$('#voice-timing-hint').textContent = '本地声音暂未加载；仍可选择云端声音。';}
   }
   function page(name) {
+    clearTimeout(memoryJobTimer);
     currentPage = name;
     $$('.page').forEach(x => x.classList.toggle('active', x.id === 'page-' + name));
     $$('.nav[data-page]').forEach(x => x.classList.toggle('active', x.dataset.page === name));
     $('#page-title').textContent = {home: '今天，也在你身边。', memories: '那些关于你的事。', tasks: '一起，把事情做好。'}[name];
+    if (name === 'memories') void refreshMemoryJobs();
+  }
+  async function refreshMemoryJobs() {
+    clearTimeout(memoryJobTimer);
+    if (closing || observer || currentPage !== 'memories') return;
+    try {
+      const jobs = await api('/api/memory-jobs');
+      if (currentPage !== 'memories' || closing) return;
+      const count = status => jobs.filter(j => j.status === status).length;
+      const pending = count('pending'), processing = count('processing'), failed = count('failed');
+      const paused = state.settings.auto_memory === false;
+      const parts = [];
+      if (paused) parts.push('自动整理已暂停');
+      if (pending) parts.push(`${pending} 条等待整理`);
+      if (processing) parts.push(`${processing} 条正在整理`);
+      if (failed) parts.push(`${failed} 条整理失败`);
+      $('#memory-job-status').textContent = parts.join(' · ') || '记忆已保存在本机';
+      $('#retry-memory-jobs').hidden = !failed || paused;
+    } catch {
+      if (currentPage === 'memories') $('#memory-job-status').textContent = '暂时无法读取整理进度';
+    } finally {
+      if (!closing && currentPage === 'memories') memoryJobTimer = setTimeout(refreshMemoryJobs, 3000);
+    }
   }
   function renderMemories() {
     const list = $('#memory-list'); list.replaceChildren();
@@ -285,6 +384,7 @@
           const ready = transcriptBatch.filter(x => x.revision === inputRevision);
           transcriptBatch = [];
           if (ready.length) void submitMessage(ready.map(x => x.text).join('。'), true);
+          else inputActivity('transcription',false);
         }, 220);
       };
       const processRecordings = async () => {
@@ -310,6 +410,7 @@
             } catch (error) {
               if (revision === inputRevision && microphone === micSession) {
                 pendingRecordings.unshift(...batch);
+                inputActivity('transcription',false);
                 toast('语音识别暂时失败，录音已保留；继续说话会重试，关闭麦克风会清理。');
               }
               break;
@@ -318,7 +419,10 @@
         } finally {
           transcribing = false;
           if (microphone === micSession && !micSpeaking) $('#mic-state').textContent = pendingRecordings.length ? '语音等待重新识别' : '麦克风已开启 · 随时可打断';
-          if (transcriptBatch.length) flushTranscripts();
+          if (microphone === micSession) {
+            if (transcriptBatch.length) flushTranscripts();
+            else if (!pendingRecordings.length) inputActivity('transcription',false);
+          }
         }
       };
       processor.onaudioprocess = (event) => {
@@ -333,6 +437,7 @@
           speechMs = voiced ? speechMs+ms : Math.max(0,speechMs-ms*2);
           if (speechMs >= 140) {
             micSpeaking = true; frames = preroll; preroll = []; totalMs = speechMs; silenceMs = 0; captureRevision = inputRevision;
+            inputActivity('microphone',true);
             interrupt(true); setStatus('listening'); $('#listening-indicator').hidden = false; $('#mic-state').textContent = '正在听你说';
           }
         } else {
@@ -341,6 +446,7 @@
             const recording = {chunks:frames, samples:frames.reduce((sum,chunk)=>sum+chunk.length,0), revision:captureRevision}; micSpeaking = false; frames = []; speechMs = 0; silenceMs = 0;
             $('#listening-indicator').hidden = true; $('#mic-state').textContent = '正在识别…'; setStatus('thinking');
             pendingRecordings.push(recording);
+            inputActivity('transcription',true); inputActivity('microphone',false);
             void processRecordings();
           }
         }
@@ -357,6 +463,7 @@
   function stopMic() {
     micStartToken++;
     inputRevision++; transcriptBatch = []; clearTimeout(transcriptFlushTimer);
+    inputActivity('microphone',false); inputActivity('transcription',false);
     if (microphone) {microphone.processor.onaudioprocess = null; microphone.stream.getTracks().forEach(x => x.stop()); microphone.input.disconnect(); microphone.processor.disconnect(); microphone.mute.disconnect(); microphone = null;}
     micSpeaking = false; $('#mic-button').classList.remove('active'); $('#mic-button').title = '开启麦克风'; $('#mic-state').textContent = '麦克风未开启'; $('#listening-indicator').hidden = true; setStatus(state.status || 'idle');
   }
@@ -366,13 +473,15 @@
     $$('.nav[data-page]').forEach(button => button.onclick = () => page(button.dataset.page));
     $('#chat-form').onsubmit = (event) => {event.preventDefault(); void submitMessage($('#message').value);};
     $('#message').onkeydown = (event) => {if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {event.preventDefault(); void submitMessage($('#message').value);}};
+    $('#message').oninput = () => inputActivity('keyboard', Boolean($('#message').value.trim()));
     $('#stop-button').onclick = interrupt; $('#compact-stop').onclick = interrupt;
     document.addEventListener('keydown', (event) => {if (event.key === 'Escape') {interrupt(); $('#settings-scrim').hidden = true;}});
     $('#mic-button').onclick = toggleMic;
     $('#audio-button').onclick = async () => {try {const enabled = state.settings.audio_enabled === false; if (!enabled) interrupt(); const result = await api('/api/settings',{method:'POST',body:{audio_enabled:enabled}}); renderState(result);} catch(error) {toast(error.message);}};
     $('#new-session').onclick = async () => {interrupt(); try {renderState(await api('/api/session',{method:'POST',body:{scene:state.scene}}));} catch(error) {toast(error.message);}};
     $$('.scene-tabs button').forEach(button => button.onclick = async () => {if (button.dataset.scene === state.scene) return; interrupt(); try {renderState(await api('/api/session',{method:'POST',body:{scene:button.dataset.scene}}));} catch(error) {toast(error.message);}});
-    $$('.settings-open').forEach(button => button.onclick = () => {$('#settings-scrim').hidden = false;});
+    $$('.settings-open').forEach(button => button.onclick = () => {$('#settings-scrim').hidden = false; void loadVoices();});
+    $('#setting-voice').onchange = voiceHint;
     $('[data-close="settings-scrim"]').onclick = () => {$('#settings-scrim').hidden = true; $('#setting-key').value = '';};
     $('#settings-scrim').onclick = (event) => {if (event.target === $('#settings-scrim')) {$('#settings-scrim').hidden = true; $('#setting-key').value = '';}};
     $('#settings-form').onsubmit = async (event) => {
@@ -384,6 +493,7 @@
     $('#avatar-button').onclick = () => $('#avatar-file').click();
     $('#avatar-file').onchange = async () => {const file = $('#avatar-file').files[0]; if (!file) return; try {const result = await api('/api/avatar?ext='+encodeURIComponent(file.name.split('.').pop().toLowerCase()),{method:'POST',body:file}); renderState({settings:{avatar:result.avatar}}); toast('换好啦。');} catch(error) {toast(error.message);} $('#avatar-file').value = '';};
     $('#add-memory').onclick = () => openMemory(); $('#close-memory').onclick = () => $('#memory-dialog').close();
+    $('#retry-memory-jobs').onclick = async () => {const button = $('#retry-memory-jobs'); button.disabled = true; try {const result = await api('/api/memory-jobs/retry',{method:'POST'}); toast(`已重新安排 ${result.retried} 条记忆整理。`); await refreshMemoryJobs();} catch(error) {toast(error.message);} finally {button.disabled = false;}};
     $$('#memory-filters button').forEach(button => button.onclick = () => {filter = button.dataset.filter; $$('#memory-filters button').forEach(x => x.classList.toggle('active', x === button)); renderMemories();});
     $('#memory-form').onsubmit = async (event) => {event.preventDefault(); const id = $('#memory-id').value, body = {content:$('#memory-content').value,scene:$('#memory-scene').value,visibility:$('#memory-visibility').value}; if (memorySource) body.source_id = memorySource; try {await api('/api/memories'+(id ? '/'+encodeURIComponent(id) : ''),{method:id ? 'PUT':'POST',body}); state.memories = await api('/api/memories'); renderMemories(); $('#memory-dialog').close(); toast('记住了。');} catch(error) {toast(error.message);}};
     $('#task-form').onsubmit = async (event) => {event.preventDefault(); const button = $('#task-form button'); button.disabled = true; try {const task = await api('/api/tasks',{method:'POST',body:{prompt:$('#task-prompt').value,read_only:$('#task-readonly').checked}}); if (!state.tasks.some(x=>x.id === task.id)) state.tasks.unshift(task); renderTasks(); $('#task-prompt').value = ''; toast('Codex 已接到任务，你可以继续聊天。');} catch(error) {toast(error.message);} finally {button.disabled = false;}};
@@ -392,7 +502,8 @@
     $('#compact-button').onclick = compact; $('#compact-expand').onclick = compact;
     window.companionDesktop?.onCompact((enabled) => {page('home'); document.body.classList.toggle('compact',enabled);});
     void api('/api/state').then(renderState).catch(error => toast(error.message));
+    void loadVoices();
   }
-  window.addEventListener('beforeunload', () => {closing = true; clearTimeout(reconnect); cancelPlayback(); stopMic(); ws?.close();});
+  window.addEventListener('beforeunload', () => {closing = true; clearTimeout(reconnect); clearTimeout(memoryJobTimer); cancelPlayback(); stopMic(); ws?.close();});
   connect();
 })();

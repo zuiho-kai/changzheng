@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "killed_during_extraction": true,
+    "job_recovered_without_resending": true,
+    "real_extraction_saved": true,
+    "paraphrase_recall_after_restart": true,
+    "forget_survives_second_restart": true
+  },
+  "jobs": [
+    {
+      "message_id": "d337add80dd547599242e9ccca493f5c",
+      "scene": "chat",
+      "status": "done",
+      "attempts": 2,
+      "available_at": 1788584428.2988124,
+      "created_at": 1788584426.4935403,
+      "updated_at": 1788584429.1343422,
+      "error": ""
+    }
+  ]
+}

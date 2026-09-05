@@ -3,3 +3,5 @@ body.overlay{background:transparent!important;overflow:hidden}body.overlay .app-
 
 .live-demo{font-size:10px;color:#8c9b7e;border:1px solid #e2e8d8;border-radius:9px;padding:9px 11px;margin-top:15px}.live-demo summary{cursor:pointer}.live-demo summary span{font-size:9px;color:#b0b7a5;margin-left:7px}.live-demo form{display:flex;gap:5px;margin-top:9px}.live-demo input{font-size:10px!important;padding:7px!important;min-width:0}.live-demo input:first-child{width:90px}.live-demo .send-button{flex-shrink:0;height:29px}.status-pausing{color:#a89b70!important;background:#f1eede!important}
 html.overlay{background:transparent!important}
+.toast-action{color:#fffef5;border:1px solid #ffffff70;border-radius:6px;margin-left:14px;padding:3px 8px;font-size:11px;white-space:nowrap}
+.memory-progress{display:flex;align-items:center;gap:16px;margin:0 0 20px;color:var(--muted);font-size:13px}.memory-progress button{color:#a36343}

@@ -1,0 +1,47 @@
+{
+  "checks": {
+    "synonyms_share_one_canonical_memory": true,
+    "both_original_sources_preserved": true,
+    "explicit_change_replaces_old_preference": true,
+    "old_source_and_assistant_removed_from_context": true,
+    "current_preference_recalled": true,
+    "private_preference_not_in_live": true,
+    "forget_excludes_all_associated_sources": true
+  },
+  "stages": [
+    [
+      {
+        "content": "用户工作时喜欢喝无糖咖啡",
+        "scene": "work"
+      }
+    ],
+    [
+      {
+        "content": "用户工作时喜欢喝无糖咖啡",
+        "scene": "work"
+      }
+    ],
+    [
+      {
+        "content": "用户工作时不再喝咖啡，改喝无糖绿茶",
+        "scene": "work"
+      }
+    ]
+  ],
+  "decisions": [
+    {
+      "action": "same",
+      "id": "ec91f97d8497463e8335b727cde48d3f",
+      "confidence": 0.95,
+      "explicit_change": false,
+      "evidence": "用户干活时偏好喝不加糖的咖啡"
+    },
+    {
+      "action": "supersede",
+      "id": "ec91f97d8497463e8335b727cde48d3f",
+      "confidence": 1.0,
+      "explicit_change": true,
+      "evidence": "不再喝咖啡，改喝无糖绿茶"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "actual_electron_compact": true,
+    "expanded_after_compact": true,
+    "real_electron_audio_confirmed": true,
+    "memory_failure_visible": true,
+    "memory_retry_updates_status": true,
+    "memory_poll_stops_when_page_hidden": true,
+    "stage_1920_preview": true,
+    "stage_uses_observer_only": true
+  },
+  "electron": "44.2.0",
+  "audio_metrics": {
+    "received_at": 1788585733.0103538,
+    "source": "user",
+    "recall_ms": 2,
+    "speech_budget": 120,
+    "model_ttft_ms": 381,
+    "audible_wait_ms": 770
+  }
+}

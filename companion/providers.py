@@ -5,6 +5,7 @@ import wave
 import httpx
 
 from .secrets import get_key
+from .local_speech import LocalSpeech
 
 BASE = 'https://api.siliconflow.cn/v1'
 FAST_MODEL = 'Qwen/Qwen3.5-35B-A3B'
@@ -14,6 +15,7 @@ TTS_MODEL = 'FunAudioLLM/CosyVoice2-0.5B'
 class Provider:
     def __init__(self):
         self.client = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15), limits=httpx.Limits(max_connections=8))
+        self.local_speech = LocalSpeech()
 
     def headers(self):
         key = get_key()
@@ -49,11 +51,13 @@ class Provider:
     async def json_reply(self, messages, model=FAST_MODEL):
         response = await self.client.post(BASE + '/chat/completions', headers=self.headers(), json={
             'model': model, 'messages': messages, 'enable_thinking': False,
-            'response_format': {'type': 'json_object'}, 'max_tokens': 700})
+            'response_format': {'type': 'json_object'}, 'max_tokens': 700, 'temperature': 0})
         await self.check(response)
         return json.loads(response.json()['choices'][0]['message']['content'])
 
     async def speech(self, text, voice='claire'):
+        if voice.startswith('local:'):
+            return await self.local_speech.speech(text, voice[6:])
         response = await self.client.post(BASE + '/audio/speech', headers=self.headers(), json={
             'model': TTS_MODEL, 'voice': f'{TTS_MODEL}:{voice}', 'input': text,
             'response_format': 'wav', 'sample_rate': 24000, 'stream': False})
@@ -82,4 +86,5 @@ class Provider:
         return [item['embedding'] for item in sorted(response.json()['data'], key=lambda x:x['index'])]
 
     async def close(self):
+        await self.local_speech.close()
         await self.client.aclose()

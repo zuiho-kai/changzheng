@@ -1,6 +1,7 @@
 """Only playback acknowledgements turn generated drafts into conversation."""
 import re
 import uuid
+import math
 
 
 def split_speech(text: str, limit: int = 18) -> list[str]:
@@ -30,11 +31,12 @@ class SpeechLedger:
         self.next_id = 0
         return self.turn_id
 
-    def stage(self, text):
+    def stage(self, text, boundaries=None, duration=0):
         if not self.turn_id:
             raise RuntimeError('No active utterance')
         self.next_id += 1
-        segment = {'id': self.next_id, 'text': text}
+        segment = {'id': self.next_id, 'text': text, 'boundaries': boundaries or [],
+                   'duration': duration, 'committed': 0, 'progress': 0}
         self.pending.append(segment)
         return segment
 
@@ -43,7 +45,27 @@ class SpeechLedger:
             return False
         if self.pending[0]['id'] != segment_id:
             return False
-        self.heard += self.pending.pop(0)['text']
+        segment = self.pending.pop(0)
+        self.heard += segment['text'][segment['committed']:]
+        return True
+
+    def progress(self, turn_id, segment_id, seconds):
+        if turn_id != self.turn_id or not self.pending or self.pending[0]['id'] != segment_id:
+            return False
+        if not isinstance(seconds, (float,int)) or not math.isfinite(seconds):
+            return False
+        segment = self.pending[0]
+        if seconds <= segment['progress'] or not 0 <= seconds <= segment['duration']:
+            return False
+        segment['progress'] = seconds
+        # Guard against clock/report jitter. Boundaries are provided by the
+        # synthesizer, never manufactured by dividing text by audio duration.
+        end = max([segment['committed']] + [b['end'] for b in segment['boundaries']
+            if b['seconds'] + .04 <= seconds and 0 <= b['end'] <= len(segment['text'])])
+        if end <= segment['committed']:
+            return False
+        self.heard += segment['text'][segment['committed']:end]
+        segment['committed'] = end
         return True
 
     def finish(self, interrupted=False):

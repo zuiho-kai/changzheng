@@ -1,0 +1,46 @@
+{
+  "checks": {
+    "real_engine_word_boundaries": true,
+    "interruption_retains_partial_segment": true,
+    "stop_includes_actual_cursor": true,
+    "partial_prefix_in_actual_next_model_input": true,
+    "real_codex_task_complete": true,
+    "completion_spoken_at_idle": true,
+    "live_buffer_bounded": true,
+    "live_not_one_reply_per_message": true,
+    "live_utterance_budget": true,
+    "no_browser_errors": true
+  },
+  "metrics": {
+    "word_turn": {
+      "received_at": 1788584556.7674723,
+      "source": "user",
+      "recall_ms": 0,
+      "speech_budget": 120,
+      "model_ttft_ms": 337,
+      "audible_wait_ms": 728
+    },
+    "live_input_count": 200,
+    "live_completed_replies": 1,
+    "live_elapsed_s": 17.44,
+    "live_turns": [
+      {
+        "received_at": 1788584598.991798,
+        "source": "live",
+        "selected": 8,
+        "candidate_newest_age_ms": 141,
+        "candidate_oldest_age_ms": 156,
+        "recall_ms": 1,
+        "speech_budget": 28,
+        "model_ttft_ms": 403,
+        "speech_budget_reached": true,
+        "audible_wait_ms": 828,
+        "selected_newest_to_audio_ms": 969,
+        "selected_oldest_to_audio_ms": 984
+      }
+    ]
+  },
+  "boundary": "SAPI engine timestamps plus browser estimated output clock; not a physical hearing measurement.",
+  "heard_prefix": "我先",
+  "errors": []
+}

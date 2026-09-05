@@ -93,20 +93,22 @@ class Store:
             self.conn.execute('INSERT INTO sessions VALUES (?,?,?)', (session_id, scene, _now()))
         return session_id
 
-    def add_message(self, session_id, role, content, *, message_id=None, scene='chat', source='user'):
+    def add_message(self, session_id, role, content, *, message_id=None, scene='chat', source='user', context_revision=None):
         if role not in ('user', 'assistant', 'system', 'tool'):
             raise ValueError('Invalid message role')
         message_id = message_id or uuid.uuid4().hex
         with self._lock, self.conn:
+            self.conn.execute('BEGIN IMMEDIATE')
             existing = self._rows('SELECT * FROM messages WHERE id=?', (message_id,))
             if existing:
                 row = existing[0]
                 if (row['session_id'], row['role'], row['content']) != (session_id, role, content):
                     raise ValueError('Message id already belongs to different content')
                 return self._one('messages', message_id)
+            excluded = role == 'assistant' and context_revision is not None and context_revision != self.get_setting('memory_context_revision', 0)
             self.conn.execute('''INSERT INTO messages
-                (id,session_id,role,content,scene,source,created_at) VALUES (?,?,?,?,?,?,?)''',
-                (message_id, session_id, role, content, scene, source, _now()))
+                (id,session_id,role,content,scene,source,created_at,excluded) VALUES (?,?,?,?,?,?,?,?)''',
+                (message_id, session_id, role, content, scene, source, _now(), int(excluded)))
             return self._one('messages', message_id)
 
     def history(self, session_id, limit=24):
@@ -152,6 +154,52 @@ class Store:
             row.pop('normalized', None)
         return rows
 
+    def reconcile_memory(self, candidate, content, source_id, *, supersede=False, kind=None):
+        """Attach a synonym or replace an explicitly changed fact with one atomic CAS."""
+        normalized = _normal(content)
+        if not normalized:
+            raise ValueError('Memory cannot be empty')
+        with self._lock, self.conn:
+            # Acquire the SQLite write lock before reading the candidate/source,
+            # including when a second Store connection edits the same database.
+            self.conn.execute('BEGIN IMMEDIATE')
+            sources = self._rows('''SELECT rowid AS sequence,* FROM messages WHERE id=?
+                AND excluded=0 AND role='user' AND source='user' ''', (source_id,))
+            if not sources:
+                raise ValueError('Memory source is missing or excluded from context')
+            rows = self._rows('SELECT * FROM memories WHERE id=?', (candidate['id'],))
+            fields = ('content', 'updated_at', 'scene', 'visibility')
+            if not rows or any(rows[0][key] != candidate[key] for key in fields):
+                raise ValueError('Memory candidate changed during reconciliation')
+            old, source = rows[0], sources[0]
+            if supersede:
+                newest = self._rows('''SELECT MAX(m.rowid) AS sequence FROM memory_sources s
+                    JOIN messages m ON m.id=s.source_id WHERE s.memory_id=?''', (old['id'],))[0]['sequence']
+                if newest is not None and source['sequence'] <= newest:
+                    raise ValueError('Memory correction source must be newer than existing sources')
+                duplicate = self._rows('''SELECT id FROM memories WHERE normalized=?
+                    AND scene=? AND visibility=? AND id<>?''',
+                    (normalized, old['scene'], old['visibility'], old['id']))
+                if duplicate:
+                    raise ValueError('Memory correction would duplicate an existing fact')
+                self.conn.execute('''UPDATE messages SET excluded=1 WHERE id<>? AND
+                    (role='assistant' OR id IN
+                    (SELECT source_id FROM memory_sources WHERE memory_id=?))''',
+                    (source_id, old['id']))
+                self._bump_memory_revision()
+                self.conn.execute('''UPDATE memories SET content=?,normalized=?,source_id=?,
+                    source_text=?,kind=?,updated_at=? WHERE id=?''',
+                    (content.strip(), normalized, source_id, source['content'],
+                     kind or old['kind'], _now(), old['id']))
+            else:
+                # Keep the canonical wording. Even "same" must not recreate an
+                # old candidate after a concurrent editor delete/correction.
+                self.conn.execute('''UPDATE memories SET source_id=COALESCE(source_id,?),
+                    source_text=COALESCE(source_text,?),updated_at=? WHERE id=?''',
+                    (source_id, source['content'], _now(), old['id']))
+            self.conn.execute('INSERT OR IGNORE INTO memory_sources VALUES (?,?)', (old['id'], source_id))
+            return self._one('memories', old['id'])
+
     def recall(self, query, scene='chat', limit=6):
         query_terms = _terms(query)
         if not query_terms or limit <= 0:
@@ -181,6 +229,13 @@ class Store:
         # history and remove the original source from future model inputs.
         self.conn.execute('''UPDATE messages SET excluded=1 WHERE role='assistant'
             OR id IN (SELECT source_id FROM memory_sources WHERE memory_id=?)''', (memory['id'],))
+        self._bump_memory_revision()
+
+    def _bump_memory_revision(self):
+        # Caller owns the existing write transaction; do not nest set_setting.
+        version = self.get_setting('memory_context_revision', 0) + 1
+        self.conn.execute('''INSERT INTO settings VALUES ('memory_context_revision',?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value''', (json.dumps(version),))
 
     def update_memory(self, memory_id, content, scene=None, visibility=None):
         if not _normal(content):

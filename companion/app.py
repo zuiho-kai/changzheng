@@ -26,8 +26,17 @@ bridge = None
 provider = None
 
 
+async def stop_without_owner():
+    # emit() can run inside generation/control. Clean up outside that stack.
+    async with runtime.control:
+        if OWNER is None:
+            await runtime._interrupt()
+
+
 async def emit(event):
     global OWNER
+    if event['type'] == 'task_updated' and runtime:
+        runtime.observe_task(event['task'])
     dead = []
     for ws, role in list(CLIENTS.items()):
         outgoing = event
@@ -45,6 +54,9 @@ async def emit(event):
         CLIENTS.pop(ws, None)
         if OWNER is ws:
             OWNER = None
+            runtime.controller_present = False
+            runtime.notice_blocked = True
+            asyncio.create_task(stop_without_owner())
 
 
 @asynccontextmanager
@@ -58,6 +70,7 @@ async def lifespan(app):
     runtime = Runtime(store, provider, emit)
     bridge = CodexBridge(store, emit)
     runtime.dispatch_task = bridge.launch
+    await runtime.start()
     yield
     await runtime.close()
     await bridge.close()
@@ -97,7 +110,7 @@ async def missing_item(request, exc):
 
 @app.get('/api/health')
 async def health():
-    return {'ok': True, 'app': 'changzheng', 'version': '0.1.0'}
+    return {'ok': True, 'app': 'changzheng', 'version': '0.2.0'}
 
 
 @app.get('/api/state')
@@ -113,14 +126,24 @@ async def settings(request: Request):
     choices = {'fast_model', 'voice', 'cwd', 'audio_enabled', 'auto_memory'}
     for key in choices & data.keys():
         value = data[key]
-        if key == 'voice' and value not in ('claire','anna','bella','diana','alex','benjamin','charles','david'):
-            raise ValueError('音色不存在')
+        if key == 'voice':
+            if value.startswith('local:'):
+                names = [v['name'] for v in await provider.local_speech.voices()]
+                if value[6:] not in names:
+                    raise ValueError('此本地音色未安装')
+            elif value not in ('claire','anna','bella','diana','alex','benjamin','charles','david'):
+                raise ValueError('音色不存在')
         if key == 'cwd':
             path = Path(value).expanduser().resolve()
             if not path.is_dir():
                 raise ValueError('工作目录不存在')
             value = str(path)
         store.set_setting(key, value)
+        if key == 'auto_memory':
+            if value:
+                runtime.resume_memory()
+            else:
+                await runtime.pause_memory()
     return await state()
 
 
@@ -152,6 +175,25 @@ async def memories():
     return store.memories()
 
 
+@app.get('/api/memory-jobs')
+async def memory_jobs():
+    return runtime.memory_jobs.list_jobs()
+
+
+@app.post('/api/memory-jobs/retry')
+async def retry_memory_jobs():
+    return {'retried': runtime.memory_jobs.retry_failed()}
+
+
+@app.get('/api/voices')
+async def voices():
+    try:
+        local = await asyncio.wait_for(provider.local_speech.voices(),timeout=5)
+    except Exception:
+        local = []
+    return {'local':local}
+
+
 @app.post('/api/memories')
 async def remember(request: Request):
     body = await request.json()
@@ -163,8 +205,11 @@ async def remember(request: Request):
 async def correct(memory_id: str, request: Request):
     body = await request.json()
     await runtime.invalidate_memory()
-    result = store.update_memory(memory_id, str(body.get('content',''))[:2000],
-        scene=body.get('scene'), visibility=body.get('visibility'))
+    try:
+        result = store.update_memory(memory_id, str(body.get('content',''))[:2000],
+            scene=body.get('scene'), visibility=body.get('visibility'))
+    finally:
+        runtime.resume_memory()
     await emit({'type':'state', **runtime.state()})
     return result
 
@@ -172,7 +217,10 @@ async def correct(memory_id: str, request: Request):
 @app.delete('/api/memories/{memory_id}')
 async def forget(memory_id: str):
     await runtime.invalidate_memory()
-    store.forget_memory(memory_id)
+    try:
+        store.forget_memory(memory_id)
+    finally:
+        runtime.resume_memory()
     await emit({'type':'state', **runtime.state()})
     return {'ok':True}
 
@@ -285,6 +333,12 @@ async def socket(ws: WebSocket):
         return
     if role=='control':
         OWNER=ws
+        # A failed send may have released the previous socket before its
+        # deferred cleanup ran. Never inherit its undelivered speech.
+        await runtime.interrupt()
+        runtime.controller_present=True
+        runtime.last_activity=time.monotonic()
+        runtime.notice_blocked=False
     CLIENTS[ws]=role
     await ws.send_json({'type':'state', **(runtime.state() if role=='control' else {'scene':runtime.scene,'status':runtime.status if runtime.scene=='live' else 'idle','settings':{'avatar':runtime.settings()['avatar']}})})
     try:
@@ -295,16 +349,27 @@ async def socket(ws: WebSocket):
             kind=body.get('type')
             if kind=='message':
                 await runtime.message(str(body.get('text','')),voice=body.get('voice',True))
+            elif kind=='input_activity':
+                runtime.input_activity(body.get('active') is True)
             elif kind=='interrupt':
                 # Completed ACKs can be included atomically with the stop event.
                 for ack in body.get('completed',[])[:20]:
                     await runtime.ack(ack.get('turn_id'),ack.get('id'))
+                progress = body.get('progress')
+                if isinstance(progress,dict):
+                    await runtime.progress(progress.get('turn_id'),progress.get('id'),progress.get('seconds'))
                 await runtime.interrupt()
+            elif kind=='playback_progress':
+                await runtime.progress(body.get('turn_id'),body.get('id'),body.get('seconds'))
             elif kind=='played':
                 await runtime.ack(body.get('turn_id'),body.get('id'))
             elif kind=='playback_started':
                 if body.get('turn_id')==runtime.ledger.turn_id and 'audible_wait_ms' not in runtime.metrics:
                     runtime.metrics['audible_wait_ms']=round((time.time()-runtime.metrics.get('received_at',time.time()))*1000)
+                    for age in ('newest','oldest'):
+                        key=f'candidate_{age}_age_ms'
+                        if key in runtime.metrics:
+                            runtime.metrics[f'selected_{age}_to_audio_ms']=runtime.metrics[key]+runtime.metrics['audible_wait_ms']
             elif kind=='ping':
                 await ws.send_json({'type':'pong'})
     except (WebSocketDisconnect, RuntimeError):
@@ -313,6 +378,7 @@ async def socket(ws: WebSocket):
         CLIENTS.pop(ws,None)
         if OWNER is ws:
             OWNER=None
+            runtime.controller_present=False
             await runtime.interrupt()
 
 
@@ -324,6 +390,11 @@ async def index():
 @app.get('/overlay')
 async def overlay():
     return FileResponse(ROOT/'web/index.html')
+
+
+@app.get('/stage')
+async def stage():
+    return FileResponse(ROOT/'web/stage.html')
 
 
 app.mount('/static', StaticFiles(directory=ROOT/'web',check_dir=False), name='static')

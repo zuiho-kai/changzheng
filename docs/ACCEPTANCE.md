@@ -48,3 +48,10 @@ Windows本地音色支持引擎词边界和浏览器估计输出时钟，单次�
 ## 产物
 
 报告和截图都在 `artifacts/`。测试源在 `tests/` 和 `probes/`。探针是合成任务和真实API调用，部分会消费模型请求；运行前应启动隔离测试服务17862，避免对日常记忆做清理测试。
+# Live2D local acceptance (2026-09-05)
+
+- `python probes/live2d.py`: seven checks passed in an isolated backend and Chromium with actual local SAPI audio. Model rendered, live RMS drove the observer mouth, private scene speech did not, Stop discarded pending audio and closed the observer mouth in 156 ms. Avatar switching propagated to the observer. No browser page errors.
+- `python -m pytest -q`: 85 passed, 8 subtests passed. Added rejection tests for stale turn IDs, non-finite/out-of-range/string/bool mouth values and private mouth event filtering.
+- Evidence: `artifacts/live2d-probe.json`, `artifacts/live2d-desktop.png`, `artifacts/live2d-stage.png`. The timing is browser-observed device-clock behavior, not a physical speaker measurement.
+- An independent preview is running at http://127.0.0.1:17868/ with Live2D selected and local Huihui voice. Launch script: `probes/live2d_preview.py`; separate data under `artifacts/runtime-live2d-preview`. Automatic memory is disabled in this preview. Existing daily instance at port 17861 was preserved because automatic approval rejected its process restart.
+- Bilibili title change, scene import, audio-track capture and public streaming remain unverified. No broadcast was started in this increment.

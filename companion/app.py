@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import os
 import time
 import uuid
@@ -44,7 +45,9 @@ async def emit(event):
             if event['type'] == 'state':
                 outgoing = {'type':'state', 'scene':runtime.scene, 'status':'idle',
                     'settings':{'avatar':runtime.settings()['avatar']}}
-            elif runtime.scene != 'live' or event['type'] not in ('status', 'turn_started', 'segment_committed', 'turn_finished'):
+            elif event['type'] == 'avatar_changed':
+                pass
+            elif runtime.scene != 'live' or event['type'] not in ('status', 'turn_started', 'segment_committed', 'turn_finished', 'mouth'):
                 continue
         try:
             await ws.send_json(outgoing)
@@ -297,7 +300,19 @@ async def avatar(request: Request):
     name = uuid.uuid4().hex+'.'+extension
     (folder/name).write_bytes(data)
     store.set_setting('avatar','/avatars/'+name)
+    await emit({'type':'avatar_changed', 'avatar':'/avatars/'+name})
     return {'avatar':'/avatars/'+name}
+
+
+@app.post('/api/avatar/preset')
+async def avatar_preset(request: Request):
+    preset = (await request.json()).get('preset')
+    if preset not in ('cat', 'hiyori'):
+        raise ValueError('未知角色')
+    value = 'live2d:hiyori' if preset == 'hiyori' else ''
+    store.set_setting('avatar', value)
+    await emit({'type':'avatar_changed', 'avatar':value})
+    return {'avatar':value}
 
 
 @app.get('/avatars/{name}')
@@ -361,6 +376,11 @@ async def socket(ws: WebSocket):
                 await runtime.interrupt()
             elif kind=='playback_progress':
                 await runtime.progress(body.get('turn_id'),body.get('id'),body.get('seconds'))
+            elif kind=='mouth':
+                value = body.get('value')
+                if (body.get('turn_id') and body.get('turn_id') == runtime.ledger.turn_id
+                        and type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1):
+                    await emit({'type':'mouth', 'turn_id':body['turn_id'], 'value':value})
             elif kind=='played':
                 await runtime.ack(body.get('turn_id'),body.get('id'))
             elif kind=='playback_started':

@@ -14,6 +14,29 @@
   let inputRevision = 0, transcriptBatch = [], transcriptFlushTimer;
   let micStarting = false, micStartToken = 0;
   let memoryJobTimer;
+  function mouth(value, publish = false) {
+    $('#live2d-frame')?.contentWindow?.postMessage({type:'mouth', value}, location.origin);
+    if (publish && !observer && turnId && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'mouth', turn_id:turnId, value}));
+  }
+  function renderAvatar(avatar) {
+    const live = avatar === 'live2d:hiyori';
+    const pet = $('#pet');
+    pet.classList.toggle('live2d', live);
+    $('.cat-svg').toggleAttribute('hidden', !!avatar);
+    $('#custom-avatar').hidden = !avatar || live;
+    if (avatar && !live) $('#custom-avatar').src = avatar;
+    if (live && !$('#live2d-frame')) {
+      const frame = document.createElement('iframe'); frame.id = 'live2d-frame'; frame.title = 'Live2D 桃濑日和'; frame.src = '/static/live2d.html'; pet.append(frame);
+    } else if (!live) $('#live2d-frame')?.remove();
+    $('#avatar-preset').value = live ? 'hiyori' : avatar ? 'custom' : 'cat';
+  }
+  addEventListener('message', event => {
+    if (event.origin !== location.origin || event.source !== $('#live2d-frame')?.contentWindow) return;
+    if (event.data?.type === 'live2d-error') {
+      $('#live2d-frame')?.remove(); $('#pet').classList.remove('live2d'); $('.cat-svg').removeAttribute('hidden');
+      toast('Live2D 加载失败，暂时显示小猫。');
+    }
+  });
   const inputActivities = new Set();
   if (observer) {document.body.classList.add('overlay'); document.documentElement.classList.add('overlay');}
 
@@ -65,6 +88,7 @@
     return {turn_id: playing.segment.turn_id, id: playing.segment.id, seconds};
   }
   function cancelPlayback() {
+    mouth(0, true);
     audioEpoch += 1; audioQueue = []; audioPlaying = false;
     activePlayback?.cancel();
     if (activeSource) {activeSource.onended = null; try { activeSource.stop(); } catch {} try { activeSource.disconnect(); } catch {} activeSource = null;}
@@ -105,12 +129,12 @@
         if (epoch !== audioEpoch || segment.turn_id !== turnId) break;
         await new Promise((resolve, reject) => {
           const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination); activeSource = source;
-          let settled = false, renderedAt = null, endPoll, progressPoll;
+          let settled = false, renderedAt = null, endPoll, progressPoll, mouthPoll;
           const playing = {segment, context, epoch, duration:buffer.duration, startTime:context.currentTime, started:false, cancel:() => finish(false)};
           activePlayback = playing;
           function finish(commit, error) {
             if (settled) return; settled = true;
-            clearInterval(endPoll); clearInterval(progressPoll); source.onended = null;
+            clearInterval(endPoll); clearInterval(progressPoll); clearInterval(mouthPoll); mouth(0, true); source.onended = null;
             if (!commit) {try {source.stop();} catch {}}
             source.disconnect();
             if (activeSource === source) activeSource = null;
@@ -132,6 +156,15 @@
           try {
             source.start(playing.startTime); playing.started = true;
             endPoll = setInterval(checkOutputEnd, 20);
+            const samples = buffer.getChannelData(0);
+            mouthPoll = setInterval(() => {
+              if (activePlayback !== playing || epoch !== audioEpoch || context.state !== 'running') {mouth(0, true); return;}
+              const offset = Math.floor((outputTime(context) - playing.startTime) * buffer.sampleRate);
+              if (offset < 0 || offset >= samples.length) {mouth(0, true); return;}
+              const end = Math.min(samples.length, offset + Math.floor(buffer.sampleRate * .02));
+              let sum = 0; for (let i = offset; i < end; i++) sum += samples[i] * samples[i];
+              mouth(Math.min(1, Math.sqrt(sum / Math.max(1, end - offset)) * 7), true);
+            }, 50);
             if (segment.boundaries?.length) progressPoll = setInterval(() => {
               const progress = playbackProgress();
               if (activePlayback === playing && context.state === 'running' && progress?.seconds > 0) send({type:'playback_progress', ...progress});
@@ -173,7 +206,7 @@
   function renderState(data) {
     state = {...state, ...data, settings: {...state.settings, ...data.settings}};
     setStatus(data.status || 'idle');
-    if (state.settings.avatar) {$('#custom-avatar').src = state.settings.avatar; $('#custom-avatar').hidden = false; $('.cat-svg').setAttribute('hidden','');}
+    renderAvatar(state.settings.avatar || '');
     if (observer) {bubble(''); turnId = null; return;}
     renderHistory(); renderMemories(); renderTasks();
     $$('.scene-tabs button').forEach(button => button.classList.toggle('active', button.dataset.scene === state.scene));
@@ -194,6 +227,8 @@
   function onEvent(event) {
     switch (event.type) {
       case 'state': renderState(event); break;
+      case 'avatar_changed': state.settings.avatar = event.avatar; renderAvatar(event.avatar); break;
+      case 'mouth': if (observer && event.turn_id === turnId) mouth(event.value); break;
       case 'status': state.status = event.status; if (event.status === 'idle') stopPending = false; setStatus(event.status); break;
       case 'turn_started': if (stopPending) break; cancelPlayback(); turnId = event.turn_id; completedSegments = []; firstPlaybackTurn = null; pendingRow = null; break;
       case 'segment': receiveSegment(event); break;
@@ -202,6 +237,7 @@
         if (!observer && event.turn_id === turnId) pendingRow = addMessage({id: event.turn_id, role: 'assistant', content: event.heard}, true);
         break;
       case 'turn_finished':
+        if (event.turn_id === turnId) mouth(0);
         if (event.interrupted && event.turn_id === turnId) cancelPlayback();
         if (!observer && event.heard) {
           const message = {id: event.turn_id, role: 'assistant', content: event.heard};
@@ -491,6 +527,11 @@
       try {renderState(await api('/api/settings',{method:'POST',body})); $('#setting-key').value = ''; $('#settings-scrim').hidden = true; toast('已保存，按你的习惯来。');} catch(error) {toast(error.message);} finally {button.disabled = false;}
     };
     $('#avatar-button').onclick = () => $('#avatar-file').click();
+    $('#avatar-preset').onchange = async () => {
+      const preset = $('#avatar-preset').value;
+      if (preset === 'custom') {$('#avatar-file').click(); return;}
+      try {const result = await api('/api/avatar/preset', {method:'POST', body:{preset}}); state.settings.avatar = result.avatar; renderAvatar(result.avatar);} catch(error) {toast(error.message);}
+    };
     $('#avatar-file').onchange = async () => {const file = $('#avatar-file').files[0]; if (!file) return; try {const result = await api('/api/avatar?ext='+encodeURIComponent(file.name.split('.').pop().toLowerCase()),{method:'POST',body:file}); renderState({settings:{avatar:result.avatar}}); toast('换好啦。');} catch(error) {toast(error.message);} $('#avatar-file').value = '';};
     $('#add-memory').onclick = () => openMemory(); $('#close-memory').onclick = () => $('#memory-dialog').close();
     $('#retry-memory-jobs').onclick = async () => {const button = $('#retry-memory-jobs'); button.disabled = true; try {const result = await api('/api/memory-jobs/retry',{method:'POST'}); toast(`已重新安排 ${result.retried} 条记忆整理。`); await refreshMemoryJobs();} catch(error) {toast(error.message);} finally {button.disabled = false;}};

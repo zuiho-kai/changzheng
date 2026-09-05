@@ -1,0 +1,13 @@
+{
+  "checks": {
+    "real_model_rendered": true,
+    "private_speech_not_forwarded": true,
+    "live_audio_drives_observer_mouth": true,
+    "stop_closes_mouth": true,
+    "stop_discards_pending_audio": true,
+    "no_browser_errors": true,
+    "preset_switch_reaches_observer": true
+  },
+  "stop_to_closed_mouth_ms": 156,
+  "errors": []
+}

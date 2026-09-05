@@ -26,7 +26,7 @@
     $('#custom-avatar').hidden = !avatar || live;
     if (avatar && !live) $('#custom-avatar').src = avatar;
     if (live && !$('#live2d-frame')) {
-      const frame = document.createElement('iframe'); frame.id = 'live2d-frame'; frame.title = 'Live2D 桃濑日和'; frame.src = '/static/live2d.html'; pet.append(frame);
+      const frame = document.createElement('iframe'); frame.id = 'live2d-frame'; frame.title = 'Live2D 桃濑日和'; frame.src = '/static/live2d.html' + (observer ? '' : '?framing=portrait'); pet.append(frame);
     } else if (!live) $('#live2d-frame')?.remove();
     $('#avatar-preset').value = live ? 'hiyori' : avatar ? 'custom' : 'cat';
   }
@@ -207,7 +207,13 @@
     state = {...state, ...data, settings: {...state.settings, ...data.settings}};
     setStatus(data.status || 'idle');
     renderAvatar(state.settings.avatar || '');
-    if (observer) {bubble(''); turnId = null; return;}
+    if (observer) {
+      const nextTurn = data.scene === 'live' ? data.turn_id || null : null;
+      if (turnId !== nextTurn) mouth(0);
+      turnId = nextTurn;
+      bubble(data.scene === 'live' ? data.heard || '' : '', !!turnId);
+      return;
+    }
     renderHistory(); renderMemories(); renderTasks();
     $$('.scene-tabs button').forEach(button => button.classList.toggle('active', button.dataset.scene === state.scene));
     $('#scene-note').textContent = `${sceneNames[state.scene] || '日常陪伴'} · 简短回应`;
@@ -233,10 +239,14 @@
       case 'turn_started': if (stopPending) break; cancelPlayback(); turnId = event.turn_id; completedSegments = []; firstPlaybackTurn = null; pendingRow = null; break;
       case 'segment': receiveSegment(event); break;
       case 'segment_committed':
-        if (observer) {bubble(event.heard); break;}
+        if (observer) {if (event.turn_id === turnId) bubble(event.heard, true); break;}
         if (!observer && event.turn_id === turnId) pendingRow = addMessage({id: event.turn_id, role: 'assistant', content: event.heard}, true);
         break;
       case 'turn_finished':
+        if (observer) {
+          if (event.turn_id === turnId) {mouth(0); turnId = null; bubble(event.heard || '');}
+          break;
+        }
         if (event.turn_id === turnId) mouth(0);
         if (event.interrupted && event.turn_id === turnId) cancelPlayback();
         if (!observer && event.heard) {

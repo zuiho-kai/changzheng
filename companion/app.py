@@ -27,6 +27,15 @@ bridge = None
 provider = None
 
 
+def observer_state():
+    live = runtime.scene == 'live'
+    return {'type':'state', 'scene':runtime.scene,
+        'status':runtime.status if live else 'idle',
+        'turn_id':runtime.ledger.turn_id if live else None,
+        'heard':runtime.ledger.heard if live and runtime.ledger.turn_id else '',
+        'settings':{'avatar':runtime.settings()['avatar']}}
+
+
 async def stop_without_owner():
     # emit() can run inside generation/control. Clean up outside that stack.
     async with runtime.control:
@@ -43,8 +52,7 @@ async def emit(event):
         outgoing = event
         if role == 'observer':
             if event['type'] == 'state':
-                outgoing = {'type':'state', 'scene':runtime.scene, 'status':'idle',
-                    'settings':{'avatar':runtime.settings()['avatar']}}
+                outgoing = observer_state()
             elif event['type'] == 'avatar_changed':
                 pass
             elif runtime.scene != 'live' or event['type'] not in ('status', 'turn_started', 'segment_committed', 'turn_finished', 'mouth'):
@@ -355,7 +363,7 @@ async def socket(ws: WebSocket):
         runtime.last_activity=time.monotonic()
         runtime.notice_blocked=False
     CLIENTS[ws]=role
-    await ws.send_json({'type':'state', **(runtime.state() if role=='control' else {'scene':runtime.scene,'status':runtime.status if runtime.scene=='live' else 'idle','settings':{'avatar':runtime.settings()['avatar']}})})
+    await ws.send_json({'type':'state', **runtime.state()} if role=='control' else observer_state())
     try:
         while True:
             body=await ws.receive_json()

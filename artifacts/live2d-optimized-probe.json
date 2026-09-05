@@ -1,0 +1,19 @@
+{
+  "checks": {
+    "real_model_rendered": true,
+    "compact_resize_repaints_character": true,
+    "private_speech_not_forwarded": true,
+    "live_audio_drives_observer_mouth": true,
+    "mid_turn_reload_recovers_mouth": true,
+    "reconnect_snapshot_has_current_turn": true,
+    "snapshot_excludes_private_data": true,
+    "stop_closes_mouth": true,
+    "stop_discards_pending_audio": true,
+    "interrupted_caption_is_played_prefix": true,
+    "next_model_context_matches_played_history": true,
+    "no_browser_errors": true,
+    "preset_switch_reaches_observer": true
+  },
+  "stop_to_closed_mouth_ms": 156,
+  "errors": []
+}

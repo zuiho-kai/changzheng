@@ -1,6 +1,7 @@
 """Real local model + TTS acceptance, owns an isolated server and browser."""
 import asyncio
 import json
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -9,6 +10,7 @@ import time
 
 import httpx
 from playwright.async_api import async_playwright
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -42,7 +44,14 @@ async def main():
                     await page.locator('#avatar-preset').select_option('hiyori')
                     await page.frame_locator('#live2d-frame').locator('body[data-ready=true]').wait_for(timeout=30000)
                     report['checks']['real_model_rendered'] = True
-                    await page.screenshot(path=str(ROOT/'artifacts/live2d-desktop.png'))
+                    await page.screenshot(path=str(ROOT/'artifacts/live2d-desktop-optimized.png'))
+                    await page.set_viewport_size({'width':310,'height':390})
+                    await page.evaluate("document.body.classList.add('compact')")
+                    compact_png=await page.screenshot(path=str(ROOT/'artifacts/live2d-compact.png'))
+                    crop=Image.open(io.BytesIO(compact_png)).convert('RGB').crop((55,50,255,280))
+                    report['checks']['compact_resize_repaints_character']=sum(max(pixel)<150 for pixel in crop.getdata())>300
+                    await page.evaluate("document.body.classList.remove('compact')")
+                    await page.set_viewport_size({'width':1180,'height':850})
                     stage = await browser.new_page(viewport={'width':1920,'height':1080})
                     await stage.goto(BASE+'/stage')
                     overlay = stage.frame_locator('iframe')
@@ -63,7 +72,22 @@ async def main():
                         if value>.1: break
                         await asyncio.sleep(.05)
                     report['checks']['live_audio_drives_observer_mouth'] = value>.1
-                    await stage.screenshot(path=str(ROOT/'artifacts/live2d-stage.png'))
+                    # Reconnect during a real ongoing utterance, not a new turn.
+                    snapshots=[]
+                    def received(payload):
+                        data=json.loads(payload)
+                        if data.get('type')=='state': snapshots.append(data)
+                    stage.on('websocket',lambda socket:socket.on('framereceived',received))
+                    await stage.reload()
+                    await live_model.locator('body[data-ready=true]').wait_for(timeout=30000)
+                    for _ in range(100):
+                        value=float(await live_model.locator('body').get_attribute('data-mouth') or 0)
+                        if value>.1: break
+                        await asyncio.sleep(.03)
+                    report['checks']['mid_turn_reload_recovers_mouth']=value>.1
+                    report['checks']['reconnect_snapshot_has_current_turn']=bool(snapshots and snapshots[-1].get('turn_id'))
+                    report['checks']['snapshot_excludes_private_data']=bool(snapshots and not ({'history','memories','tasks','key_configured','pending'} & snapshots[-1].keys()))
+                    await stage.screenshot(path=str(ROOT/'artifacts/live2d-stage-optimized.png'))
                     start=time.monotonic()
                     await page.locator('#stop-button').click()
                     await live_model.locator('body[data-mouth="0"]').wait_for()
@@ -71,6 +95,20 @@ async def main():
                     report['checks']['stop_closes_mouth']=report['stop_to_closed_mouth_ms']<400
                     audit=(await client.get('/api/context')).json()
                     report['checks']['stop_discards_pending_audio']=audit['pending_count']==0
+                    for _ in range(100):
+                        state=(await client.get('/api/state')).json()
+                        if state['status']=='idle': break
+                        await asyncio.sleep(.03)
+                    heard=[m['content'] for m in state['history'] if m['role']=='assistant']
+                    report['checks']['interrupted_caption_is_played_prefix']=(await overlay.locator('#speech-bubble').text_content())==(heard[-1] if heard else '')
+                    await page.locator('#message').fill('只回答一个字：好')
+                    await page.locator('#chat-form .send-button').click()
+                    for _ in range(300):
+                        audit=(await client.get('/api/context')).json()
+                        if audit['messages'] and audit['messages'][-1].get('content')=='只回答一个字：好': break
+                        await asyncio.sleep(.03)
+                    report['checks']['next_model_context_matches_played_history']=[m['content'] for m in audit['messages'] if m['role']=='assistant']==heard
+                    await page.locator('#stop-button').click()
                     report['checks']['no_browser_errors']=not errors
                     report['errors']=errors
                     await page.locator('#avatar-preset').select_option('cat')
@@ -81,7 +119,7 @@ async def main():
             proc.terminate()
             try: proc.wait(timeout=15)
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
-            (ROOT/'artifacts/live2d-probe.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            (ROOT/'artifacts/live2d-optimized-probe.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
     assert all(report['checks'].values())
 

@@ -55,3 +55,10 @@ Windows本地音色支持引擎词边界和浏览器估计输出时钟，单次�
 - Evidence: `artifacts/live2d-probe.json`, `artifacts/live2d-desktop.png`, `artifacts/live2d-stage.png`. The timing is browser-observed device-clock behavior, not a physical speaker measurement.
 - An independent preview is running at http://127.0.0.1:17868/ with Live2D selected and local Huihui voice. Launch script: `probes/live2d_preview.py`; separate data under `artifacts/runtime-live2d-preview`. Automatic memory is disabled in this preview. Existing daily instance at port 17861 was preserved because automatic approval rejected its process restart.
 - Bilibili title change, scene import, audio-track capture and public streaming remain unverified. No broadcast was started in this increment.
+# Live2D optimization acceptance (2026-09-05)
+
+- Fixed late observer joins and reconnects: live snapshots carry only the active turn ID and already-played prefix. Private snapshots carry neither. Mid-turn reload resumes mouth updates.
+- Desktop uses portrait framing; stream overlay retains full-body framing. Resizing repaints immediately instead of waiting for a separate Pixi resize/ticker cycle. Compact screenshot inspection caught the transient blank canvas before the repair.
+- `python probes/live2d.py`: 13 checks passed, including real TTS, mid-turn reload, compact repaint, played-prefix captions and actual next model context. Stop to observer mouth closure: 156 ms in this run. Evidence: `artifacts/live2d-optimized-probe.json`, `live2d-compact.png`, `live2d-desktop-optimized.png`, `live2d-stage-optimized.png`.
+- `python -m pytest -q`: 86 passed, 8 subtests passed.
+- Latest preview uses port 17869 with separate data and local Huihui voice. Launch with `python probes/live2d_preview.py --port 17869 --reload`. Earlier processes were preserved after automatic approval blocked stopping them.

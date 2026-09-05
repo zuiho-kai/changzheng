@@ -1,0 +1,16 @@
+{
+  "source_commit": "b3fea7536f2d680897dbf5cce5a13046da75803c",
+  "input": "upstream generated separated sample layers, not a flat illustration",
+  "checks": {
+    "loads_in_existing_cubism_core": true,
+    "mouth_parameter_changes_render": true,
+    "default_cli_has_no_moc3": true
+  },
+  "error": null,
+  "model": {
+    "drawables": 30,
+    "parameters": 40
+  },
+  "mouth_parameter_value": 1,
+  "native_moc3_bytes": 8746944
+}

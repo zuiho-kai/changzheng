@@ -1,0 +1,3 @@
+# Optional receiver dependencies. Upstream warns that the PyPI package is unrelated.
+blivedm @ git+https://github.com/xfgryujk/blivedm.git@3bf17fe862b8c2fc6bc04c81c3f0c5db95de93d6
+httpx>=0.28,<1

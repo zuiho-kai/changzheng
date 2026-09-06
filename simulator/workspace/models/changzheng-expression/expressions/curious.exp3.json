@@ -1,0 +1,27 @@
+{
+  "Type": "Live2D Expression",
+  "FadeInTime": 0.3,
+  "FadeOutTime": 0.4,
+  "Parameters": [
+    {
+      "Id": "ParamMouthForm",
+      "Value": -0.25,
+      "Blend": "Overwrite"
+    },
+    {
+      "Id": "ParamBrowLY",
+      "Value": 0.7,
+      "Blend": "Overwrite"
+    },
+    {
+      "Id": "ParamBrowRY",
+      "Value": -0.1,
+      "Blend": "Overwrite"
+    },
+    {
+      "Id": "ParamAngleZ",
+      "Value": 10,
+      "Blend": "Overwrite"
+    }
+  ]
+}

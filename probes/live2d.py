@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT))
 from companion.secrets import get_key
 
 BASE = 'http://127.0.0.1:17867'
+MODEL = os.environ.get('CHANGZHENG_TEST_MODEL', 'hiyori')
+OUTPUT_PREFIX = os.environ.get('CHANGZHENG_TEST_PREFIX', MODEL)
 
 
 async def main():
@@ -35,19 +37,22 @@ async def main():
                     await asyncio.sleep(.1)
                 await client.post('/api/settings', json={'voice':'local:Microsoft Huihui Desktop','auto_memory':False})
                 async with async_playwright() as pw:
-                    browser = await pw.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
+                    browser_args=['--autoplay-policy=no-user-gesture-required']
+                    if os.environ.get('CHANGZHENG_TEST_SOFTWARE_RENDERING') == '1':
+                        browser_args += ['--use-angle=swiftshader','--enable-unsafe-swiftshader']
+                    browser = await pw.chromium.launch(args=browser_args)
                     page = await browser.new_page(viewport={'width':1180,'height':850})
                     errors=[]
                     page.on('pageerror', lambda e:errors.append(str(e)))
                     await page.goto(BASE)
                     await page.wait_for_function("document.querySelector('#connection').textContent==='已连接'")
-                    await page.locator('#avatar-preset').select_option('hiyori')
+                    await page.locator('#avatar-preset').select_option(MODEL)
                     await page.frame_locator('#live2d-frame').locator('body[data-ready=true]').wait_for(timeout=30000)
                     report['checks']['real_model_rendered'] = True
-                    await page.screenshot(path=str(ROOT/'artifacts/live2d-desktop-optimized.png'))
+                    await page.screenshot(path=str(ROOT/f'artifacts/{OUTPUT_PREFIX}-desktop-optimized.png'))
                     await page.set_viewport_size({'width':310,'height':390})
                     await page.evaluate("document.body.classList.add('compact')")
-                    compact_png=await page.screenshot(path=str(ROOT/'artifacts/live2d-compact.png'))
+                    compact_png=await page.screenshot(path=str(ROOT/f'artifacts/{OUTPUT_PREFIX}-compact.png'))
                     crop=Image.open(io.BytesIO(compact_png)).convert('RGB').crop((55,50,255,280))
                     report['checks']['compact_resize_repaints_character']=sum(max(pixel)<150 for pixel in crop.getdata())>300
                     await page.evaluate("document.body.classList.remove('compact')")
@@ -87,7 +92,7 @@ async def main():
                     report['checks']['mid_turn_reload_recovers_mouth']=value>.1
                     report['checks']['reconnect_snapshot_has_current_turn']=bool(snapshots and snapshots[-1].get('turn_id'))
                     report['checks']['snapshot_excludes_private_data']=bool(snapshots and not ({'history','memories','tasks','key_configured','pending'} & snapshots[-1].keys()))
-                    await stage.screenshot(path=str(ROOT/'artifacts/live2d-stage-optimized.png'))
+                    await stage.screenshot(path=str(ROOT/f'artifacts/{OUTPUT_PREFIX}-stage-optimized.png'))
                     start=time.monotonic()
                     await page.locator('#stop-button').click()
                     await live_model.locator('body[data-mouth="0"]').wait_for()
@@ -119,7 +124,7 @@ async def main():
             proc.terminate()
             try: proc.wait(timeout=15)
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
-            (ROOT/'artifacts/live2d-optimized-probe.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            (ROOT/f'artifacts/{OUTPUT_PREFIX}-live2d-probe.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False,indent=2))
     assert all(report['checks'].values())
 

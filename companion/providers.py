@@ -11,6 +11,27 @@ BASE = 'https://api.siliconflow.cn/v1'
 FAST_MODEL = 'Qwen/Qwen3.5-35B-A3B'
 TTS_MODEL = 'FunAudioLLM/CosyVoice2-0.5B'
 
+# Only application-owned styles may become synthesis instructions. Keep None
+# untouched so private chat and existing callers retain their original voice.
+SPEECH_STYLES = {
+    'playful': ('用年轻明亮的少女音，调皮轻快地说话。', 1.07),
+    'curious': ('用年轻明亮的少女音，好奇地说话。', 1.04),
+    'excited': ('用年轻明亮的少女音，开心兴奋地说话。', 1.08),
+    'pout': ('用年轻明亮的少女音，俏皮地假装不服气。', 1.04),
+    'gentle': ('用年轻明亮的少女音，亲近温柔地说话。', 1.0),
+}
+
+
+def speech_request(text, voice, style=None, *, stream=False, response_format='wav'):
+    body = {'model': TTS_MODEL, 'voice': f'{TTS_MODEL}:{voice}', 'input': text,
+            'response_format': response_format, 'sample_rate': 24000, 'stream': stream}
+    if style is not None:
+        if style not in SPEECH_STYLES:
+            raise ValueError('未知语音风格')
+        instruction, speed = SPEECH_STYLES[style]
+        body.update(input=instruction + '<|endofprompt|>' + text, speed=speed)
+    return body
+
 
 class Provider:
     def __init__(self):
@@ -55,12 +76,11 @@ class Provider:
         await self.check(response)
         return json.loads(response.json()['choices'][0]['message']['content'])
 
-    async def speech(self, text, voice='claire'):
+    async def speech(self, text, voice='claire', style=None):
         if voice.startswith('local:'):
             return await self.local_speech.speech(text, voice[6:])
-        response = await self.client.post(BASE + '/audio/speech', headers=self.headers(), json={
-            'model': TTS_MODEL, 'voice': f'{TTS_MODEL}:{voice}', 'input': text,
-            'response_format': 'wav', 'sample_rate': 24000, 'stream': False})
+        response = await self.client.post(BASE + '/audio/speech', headers=self.headers(),
+                                          json=speech_request(text, voice, style))
         await self.check(response)
         with wave.open(io.BytesIO(response.content), 'rb') as wav:
             rate, channels, width = wav.getframerate(), wav.getnchannels(), wav.getsampwidth()

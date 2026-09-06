@@ -30,6 +30,7 @@ def test_live_arrivals_do_not_interrupt_current_speech():
         async def emit(event): events.append(event)
         store=Store(':memory:'); store.set_setting('audio_enabled',False)
         provider=Provider(); rt=Runtime(store,provider,emit)
+        rt.controller_present=True
         await rt.new_session('live')
         for i in range(100): await rt.live_message('观众',f'话题{i}')
         await asyncio.sleep(.9)
@@ -44,4 +45,25 @@ def test_live_arrivals_do_not_interrupt_current_speech():
         assert '"text": "话题' not in str(provider.calls[-1])
         assert all(x is None for x in provider.tools)
         await rt.close()
+    asyncio.run(run())
+
+
+def test_live_inbox_waits_for_player_instead_of_generating_unplayed_speech():
+    async def run():
+        class Provider:
+            async def chat(self, *args, **kwargs):
+                raise AssertionError('No model request is allowed without a player')
+                yield
+        store = Store(':memory:')
+        async def emit(event): pass
+        runtime = Runtime(store, Provider(), emit)
+        try:
+            await runtime.new_session('live')
+            await runtime.live_message('观众', '听得到吗')
+            await asyncio.sleep(.7)
+            assert runtime.generation is None and runtime.ledger.turn_id is None
+            assert len(runtime.inbox.items) == 1
+        finally:
+            await runtime.close()
+            store.close()
     asyncio.run(run())

@@ -3,6 +3,14 @@
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const observer = location.pathname === '/overlay';
+  const broadcast = new URLSearchParams(location.search).get('broadcast') === '1';
+  const presentation = observer || broadcast;
+  function publishPlayerState() {
+    if (connected && !observer && audioContext && ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type:'player_audio_state',state:audioContext.state}));
+    }
+    if (broadcast) parent.postMessage({type:'broadcast-state',connected,audio:audioContext?.state||'uninitialized'},location.origin);
+  }
   const sceneNames = {all: '所有场景', chat: '日常陪伴', work: '专注工作', live: '公开直播'};
   const statusNames = {idle: '安静陪着你', thinking: '想一想', speaking: '正在说话', listening: '认真听你说'};
   const taskNames = {queued: '等待开始', running: '正在进行', pausing: '正在暂停', completed: '已完成', paused: '已暂停', failed: '需要处理'};
@@ -14,36 +22,58 @@
   let inputRevision = 0, transcriptBatch = [], transcriptFlushTimer;
   let micStarting = false, micStartToken = 0;
   let memoryJobTimer;
+  let avatarStatus='idle', avatarExpression='auto', expressionTimer;
+  function performanceState(status, reset=false) {
+    avatarStatus=status;
+    if (reset) {clearTimeout(expressionTimer);avatarExpression='auto';}
+    $('#live2d-frame')?.contentWindow?.postMessage({type:'performance',state:status,expression:avatarExpression,reset},location.origin);
+  }
+  function performExpression(name) {
+    if (!['neutral','happy','curious','surprised','serious'].includes(name)) return;
+    clearTimeout(expressionTimer);avatarExpression=name;
+    const gesture = name === 'happy' ? 'bounce' : name === 'curious' ? 'tilt' : name === 'surprised' ? 'bounce' : undefined;
+    $('#live2d-frame')?.contentWindow?.postMessage({type:'performance',expression:name,gesture},location.origin);
+    expressionTimer=setTimeout(()=>{avatarExpression='auto';performanceState(avatarStatus);},name==='happy'?1350:2300);
+  }
   function mouth(value, publish = false) {
     $('#live2d-frame')?.contentWindow?.postMessage({type:'mouth', value}, location.origin);
     if (publish && !observer && turnId && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'mouth', turn_id:turnId, value}));
   }
   function renderAvatar(avatar) {
-    const live = avatar === 'live2d:hiyori';
+    const live = ['live2d:hiyori', 'live2d:changzheng'].includes(avatar);
+    const model = live ? avatar.split(':')[1] : '';
     const pet = $('#pet');
     pet.classList.toggle('live2d', live);
     $('.cat-svg').toggleAttribute('hidden', !!avatar);
     $('#custom-avatar').hidden = !avatar || live;
     if (avatar && !live) $('#custom-avatar').src = avatar;
-    if (live && !$('#live2d-frame')) {
-      const frame = document.createElement('iframe'); frame.id = 'live2d-frame'; frame.title = 'Live2D 桃濑日和'; frame.src = '/static/live2d.html' + (observer ? '' : '?framing=portrait'); pet.append(frame);
+    if (live && $('#live2d-frame')?.dataset.model !== model) {
+      $('#live2d-frame')?.remove();
+      const frame = document.createElement('iframe'); frame.id = 'live2d-frame'; frame.dataset.model = model;
+      frame.title = model === 'changzheng' ? 'Live2D 长征酱' : 'Live2D 桃濑日和';
+      frame.src = '/static/live2d.html?model=' + model + (presentation ? '' : '&framing=portrait'); pet.append(frame);
     } else if (!live) $('#live2d-frame')?.remove();
-    $('#avatar-preset').value = live ? 'hiyori' : avatar ? 'custom' : 'cat';
+    $('#avatar-preset').value = live ? model : avatar ? 'custom' : 'cat';
   }
   addEventListener('message', event => {
+    if(presentation && event.origin===location.origin && event.source===parent && event.data?.type==='avatar-attention'){
+      $('#live2d-frame')?.contentWindow?.postMessage({type:'performance',attention:'chat'},location.origin);
+      return;
+    }
     if (event.origin !== location.origin || event.source !== $('#live2d-frame')?.contentWindow) return;
+    if (event.data?.type === 'live2d-ready') performanceState(avatarStatus);
     if (event.data?.type === 'live2d-error') {
       $('#live2d-frame')?.remove(); $('#pet').classList.remove('live2d'); $('.cat-svg').removeAttribute('hidden');
       toast('Live2D 加载失败，暂时显示小猫。');
     }
   });
   const inputActivities = new Set();
-  if (observer) {document.body.classList.add('overlay'); document.documentElement.classList.add('overlay');}
+  if (presentation) {document.body.classList.add('overlay'); document.documentElement.classList.add('overlay');}
 
   const safe = (value) => String(value ?? '');
   function element(tag, cls, text) { const node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; }
   function toast(message, action) {
-    if (observer) return;
+    if (presentation) {if (broadcast) parent.postMessage({type:'broadcast-error',message},location.origin); return;}
     const node = $('#toast'); node.replaceChildren(element('span', '', message));
     if (action) {const button = element('button', 'toast-action', action.label); button.onclick = () => {action.run(); node.hidden = true;}; node.append(button);}
     node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => {node.hidden = true;}, 8000);
@@ -64,9 +94,16 @@
   }
   function clearInputActivity() {inputActivities.clear(); if (!observer && connected) send({type:'input_activity',active:false});}
   setInterval(() => {if (!observer && connected && inputActivities.size) send({type:'input_activity',active:true});}, 60000);
-  async function ensureAudio() { if (!audioContext) audioContext = new AudioContext(); if (audioContext.state !== 'running') await audioContext.resume(); return audioContext; }
+  async function ensureAudio() {
+    if (!audioContext) {audioContext = new AudioContext();audioContext.addEventListener('statechange',publishPlayerState);}
+    publishPlayerState();
+    if (audioContext.state !== 'running') await audioContext.resume();
+    publishPlayerState();
+    return audioContext;
+  }
   function setStatus(status) {
     const actual = micSpeaking ? 'listening' : status;
+    performanceState(actual);
     document.body.classList.remove('thinking', 'speaking', 'listening');
     if (actual !== 'idle') document.body.classList.add(actual);
     $('#pet-status').textContent = statusNames[actual] || actual;
@@ -89,6 +126,7 @@
   }
   function cancelPlayback() {
     mouth(0, true);
+    performanceState(micSpeaking?'listening':'idle',true);
     audioEpoch += 1; audioQueue = []; audioPlaying = false;
     activePlayback?.cancel();
     if (activeSource) {activeSource.onended = null; try { activeSource.stop(); } catch {} try { activeSource.disconnect(); } catch {} activeSource = null;}
@@ -169,7 +207,9 @@
               const progress = playbackProgress();
               if (activePlayback === playing && context.state === 'running' && progress?.seconds > 0) send({type:'playback_progress', ...progress});
             }, 80);
-            bubble(segment.text, true); setStatus('speaking');
+            // The public player displays only committed playback progress.
+            if (!broadcast) bubble(segment.text, true);
+            setStatus('speaking');
             if (firstPlaybackTurn !== turnId) {firstPlaybackTurn = turnId; send({type: 'playback_started', turn_id: turnId});}
           } catch (error) {finish(false, error);}
         });
@@ -205,9 +245,13 @@
   }
   function renderState(data) {
     state = {...state, ...data, settings: {...state.settings, ...data.settings}};
-    setStatus(data.status || 'idle');
+    if (broadcast && data.scene !== 'live') cancelPlayback();
+    setStatus(broadcast && data.scene !== 'live' ? 'idle' : data.status || 'idle');
     renderAvatar(state.settings.avatar || '');
-    if (observer) {
+    if (presentation) {
+      if (broadcast && data.scene === 'live' && state.settings.audio_enabled !== false) {
+        void ensureAudio().catch(error=>toast('声音未就绪：'+error.message));
+      }
       const nextTurn = data.scene === 'live' ? data.turn_id || null : null;
       if (turnId !== nextTurn) mouth(0);
       turnId = nextTurn;
@@ -231,19 +275,25 @@
     $('#key-state').textContent = state.key_configured ? '密钥已配置。留空即可继续使用。' : '填写 SiliconFlow 密钥后，就可以开始聊天。';
   }
   function onEvent(event) {
+    if (broadcast) {
+      const allowed = ['state','avatar_changed','avatar_performance','status','turn_started','segment','segment_committed','turn_finished','error','notice'];
+      if (!allowed.includes(event.type) || (state.scene !== 'live' && !['state','avatar_changed','error'].includes(event.type))) return;
+    }
     switch (event.type) {
       case 'state': renderState(event); break;
       case 'avatar_changed': state.settings.avatar = event.avatar; renderAvatar(event.avatar); break;
+      case 'avatar_performance': if (event.turn_id === turnId && state.scene === 'live') performExpression(event.expression); break;
       case 'mouth': if (observer && event.turn_id === turnId) mouth(event.value); break;
       case 'status': state.status = event.status; if (event.status === 'idle') stopPending = false; setStatus(event.status); break;
       case 'turn_started': if (stopPending) break; cancelPlayback(); turnId = event.turn_id; completedSegments = []; firstPlaybackTurn = null; pendingRow = null; break;
       case 'segment': receiveSegment(event); break;
       case 'segment_committed':
-        if (observer) {if (event.turn_id === turnId) bubble(event.heard, true); break;}
+        if (presentation) {if (event.turn_id === turnId) bubble(event.heard, true); break;}
         if (!observer && event.turn_id === turnId) pendingRow = addMessage({id: event.turn_id, role: 'assistant', content: event.heard}, true);
         break;
       case 'turn_finished':
-        if (observer) {
+        if (presentation) {
+          if (event.interrupted && event.turn_id === turnId) cancelPlayback();
           if (event.turn_id === turnId) {mouth(0); turnId = null; bubble(event.heard || '');}
           break;
         }
@@ -285,10 +335,11 @@
   }
   function connect() {
     ws = new WebSocket(`ws://${location.host}/ws${observer ? '?role=observer' : ''}`);
-    ws.onopen = () => {connected = true; $('.connection-dot').classList.add('online'); $('#connection').textContent = '已连接'; if (!observer && inputActivities.size) send({type:'input_activity',active:true});};
+    ws.onopen = () => {connected = true; $('.connection-dot').classList.add('online'); $('#connection').textContent = '已连接'; publishPlayerState(); if (!observer && inputActivities.size) send({type:'input_activity',active:true});};
     ws.onmessage = (message) => {try {onEvent(JSON.parse(message.data));} catch (error) {console.error('Event handling failed', error);}};
     ws.onclose = (event) => {
       connected = false; cancelPlayback(); turnId = null; $('.connection-dot').classList.remove('online'); $('#connection').textContent = '未连接';
+      publishPlayerState();
       if (!closing && event.code !== 1008) reconnect = setTimeout(connect, 2000);
       if (event.code === 1008) toast('已有对话窗口正在控制小征。请关闭另一个窗口后刷新。');
     };
@@ -514,7 +565,15 @@
     micSpeaking = false; $('#mic-button').classList.remove('active'); $('#mic-button').title = '开启麦克风'; $('#mic-state').textContent = '麦克风未开启'; $('#listening-indicator').hidden = true; setStatus(state.status || 'idle');
   }
 
-  if (!observer) {
+  if (broadcast) {
+    document.addEventListener('pointerdown',()=>{void ensureAudio().catch(error=>toast(error.message));});
+    addEventListener('message',event=>{
+      if(event.origin===location.origin&&event.source===parent&&event.data?.type==='broadcast-enable-audio') {
+        void ensureAudio().catch(error=>toast(error.message));
+      }
+    });
+  }
+  if (!presentation) {
     document.addEventListener('pointerdown', () => {void ensureAudio().catch(() => {});}, {once:true});
     $$('.nav[data-page]').forEach(button => button.onclick = () => page(button.dataset.page));
     $('#chat-form').onsubmit = (event) => {event.preventDefault(); void submitMessage($('#message').value);};

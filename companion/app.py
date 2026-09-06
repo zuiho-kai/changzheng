@@ -55,7 +55,7 @@ async def emit(event):
                 outgoing = observer_state()
             elif event['type'] == 'avatar_changed':
                 pass
-            elif runtime.scene != 'live' or event['type'] not in ('status', 'turn_started', 'segment_committed', 'turn_finished', 'mouth'):
+            elif runtime.scene != 'live' or event['type'] not in ('status', 'turn_started', 'segment_committed', 'turn_finished', 'mouth', 'avatar_performance'):
                 continue
         try:
             await ws.send_json(outgoing)
@@ -66,6 +66,7 @@ async def emit(event):
         if OWNER is ws:
             OWNER = None
             runtime.controller_present = False
+            runtime.player_audio_state = 'disconnected'
             runtime.notice_blocked = True
             asyncio.create_task(stop_without_owner())
 
@@ -250,6 +251,26 @@ async def live_message(request: Request):
     return await runtime.live_message(body.get('user','观众'), str(body.get('text','')))
 
 
+@app.get('/api/live/status')
+async def live_status():
+    path = ROOT / 'artifacts/runtime-bilibili/status.json'
+    try:
+        status = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        status = {}
+    fresh = time.time() - status.get('updated_at', 0) < 5
+    return {
+        'connected': fresh and status.get('state') in ('authenticated', 'connected'),
+        'room_id': status.get('room_id', status.get('requested_room')),
+        'received': status.get('received', 0), 'forwarded': status.get('forwarded', 0),
+        'player_connected': runtime.controller_present, 'scene': runtime.scene,
+        'audio_state': runtime.player_audio_state,
+        'audio_enabled': runtime.settings()['audio_enabled'],
+        'attention': getattr(runtime, 'live_attention', []) if runtime.scene == 'live' else [],
+        'status': runtime.status, 'messages': status.get('messages', []) if runtime.scene == 'live' else [],
+    }
+
+
 @app.post('/api/tasks')
 async def task(request: Request):
     body = await request.json()
@@ -315,9 +336,9 @@ async def avatar(request: Request):
 @app.post('/api/avatar/preset')
 async def avatar_preset(request: Request):
     preset = (await request.json()).get('preset')
-    if preset not in ('cat', 'hiyori'):
+    if preset not in ('cat', 'hiyori', 'changzheng'):
         raise ValueError('未知角色')
-    value = 'live2d:hiyori' if preset == 'hiyori' else ''
+    value = f'live2d:{preset}' if preset != 'cat' else ''
     store.set_setting('avatar', value)
     await emit({'type':'avatar_changed', 'avatar':value})
     return {'avatar':value}
@@ -360,6 +381,7 @@ async def socket(ws: WebSocket):
         # deferred cleanup ran. Never inherit its undelivered speech.
         await runtime.interrupt()
         runtime.controller_present=True
+        runtime.player_audio_state='uninitialized'
         runtime.last_activity=time.monotonic()
         runtime.notice_blocked=False
     CLIENTS[ws]=role
@@ -393,11 +415,15 @@ async def socket(ws: WebSocket):
                 await runtime.ack(body.get('turn_id'),body.get('id'))
             elif kind=='playback_started':
                 if body.get('turn_id')==runtime.ledger.turn_id and 'audible_wait_ms' not in runtime.metrics:
+                    runtime.player_audio_state='running'
                     runtime.metrics['audible_wait_ms']=round((time.time()-runtime.metrics.get('received_at',time.time()))*1000)
                     for age in ('newest','oldest'):
                         key=f'candidate_{age}_age_ms'
                         if key in runtime.metrics:
                             runtime.metrics[f'selected_{age}_to_audio_ms']=runtime.metrics[key]+runtime.metrics['audible_wait_ms']
+            elif kind=='player_audio_state':
+                if body.get('state') in ('running', 'suspended', 'closed'):
+                    runtime.player_audio_state=body['state']
             elif kind=='ping':
                 await ws.send_json({'type':'pong'})
     except (WebSocketDisconnect, RuntimeError):
@@ -407,6 +433,7 @@ async def socket(ws: WebSocket):
         if OWNER is ws:
             OWNER=None
             runtime.controller_present=False
+            runtime.player_audio_state='disconnected'
             await runtime.interrupt()
 
 

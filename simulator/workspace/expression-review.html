@@ -1,0 +1,38 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>长征酱 · 表情与动作</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f2eb;color:#43513d;font:15px system-ui}main{max-width:1220px;margin:auto;padding:22px}h1{font-size:24px;margin:0 0 6px}p{color:#6d7864;line-height:1.5}.titles{display:grid;grid-template-columns:1fr 1fr;text-align:center}.titles h2{font-size:16px;margin:10px}#view{height:540px;background:#e8ecdf;border-radius:16px;overflow:hidden}canvas{display:block;width:100%;height:100%}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:9px;background:#fffdf7;padding:13px 16px;margin-top:12px;border-radius:12px}.controls strong{width:55px;font-weight:500}button,a{background:#e8ecdf;border:1px solid #d7dfcf;border-radius:8px;color:#43513d;padding:8px 13px;cursor:pointer;text-decoration:none}button.active,button.primary{background:#82946f;color:white;border-color:#82946f}#status{font-size:13px;margin:12px 0}.note{font-size:12px}input{accent-color:#82946f}
+</style><main><h1>长征酱 · 表情与动作</h1><p>保持正面，用眉眼、嘴角和小动作表达状态。左边参考你的 2000，右边是长征酱。</p>
+<div class="titles"><h2>参考 · 2000 两千</h2><h2>长征酱 · 表情版</h2></div><div id="view"></div>
+<div class="controls" id="expressions"><strong>表情</strong><button data-expression="auto" class="active">自然</button><button data-expression="happy">开心</button><button data-expression="curious">疑惑</button><button data-expression="surprised">惊讶</button><button data-expression="serious">认真</button></div>
+<div class="controls" id="states"><strong>状态</strong><button data-state="idle" class="active">待机</button><button data-state="listening">听你说</button><button data-state="thinking">思考</button><button data-state="speaking">说话口型</button><span class="note">口型为无声演示</span></div>
+<div class="controls"><strong>动作</strong><button data-gesture="nod">点头</button><button data-gesture="wink">眨单眼</button><button data-gesture="tilt">轻歪头</button><button id="demo" class="primary">连续演示</button><button id="stop">停止 / 回到自然</button><a href="http://127.0.0.1:17870/">进入桌宠</a></div>
+<p id="status">正在加载…</p><p class="note">桌宠使用同一套表情控制，嘴型由真实语音驱动；停止时立即闭嘴。所有表现都保持左右转头为零。</p></main>
+<script src="/static/vendor/pixi-6.5.10.min.js"></script><script src="/static/vendor/live2dcubismcore.min.js"></script><script src="/static/vendor/cubism4-0.4.0.min.js"></script><script src="/static/avatar-performance.js"></script>
+<script>
+(async()=>{
+const view=document.querySelector('#view'),w=view.clientWidth,h=540,app=new PIXI.Application({width:w,height:h,backgroundAlpha:0,antialias:true,preserveDrawingBuffer:true});app.ticker.stop();view.append(app.view);
+const entries=[];let state='idle',expression='auto',demo=false,start=0,lastScene=-1,lastFrame=0;
+app.view.addEventListener('webglcontextlost',()=>{window.reviewError='WebGL context lost';document.querySelector('#status').textContent='图形上下文丢失，请刷新页面。';});
+for(const [index,url] of ['/reference/2000两千.model3.json','/static/models/changzheng/model.model3.json'].entries()){
+ const model=await PIXI.live2d.Live2DModel.from(url,{autoUpdate:false,autoInteract:false});app.stage.addChild(model);model.anchor.set(0,0);
+ const ow=model.width,oh=model.height,s=Math.min((w/2-30)/ow,(h-16)/oh)*(index===0?2.6:1.7);model.scale.set(s);model.position.set(index*w/2+w/4-ow*s/2,8-oh*s*(index===0?.015:.025));
+ const mask=new PIXI.Graphics().beginFill(0xffffff).drawRect(index*w/2,0,w/2,h).endFill();app.stage.addChild(mask);model.mask=mask;
+ const core=model.internalModel.coreModel;entries.push({core,performer:new AvatarPerformance(core,{reference:index===0})});
+}
+function select(){for(const b of document.querySelectorAll('button[data-expression]'))b.classList.toggle('active',b.dataset.expression===expression);for(const b of document.querySelectorAll('button[data-state]'))b.classList.toggle('active',b.dataset.state===state);}
+function mode(s,e='auto'){state=s;expression=e;for(const {performer}of entries){performer.setState(s);performer.setExpression(e);}select();}
+function stop(){demo=false;lastScene=-1;for(const {performer}of entries)performer.setState('idle',true);mode('idle');document.querySelector('#demo').textContent='连续演示';}
+document.querySelectorAll('button[data-expression]').forEach(b=>b.onclick=()=>{demo=false;expression=b.dataset.expression;for(const {performer}of entries)performer.setExpression(expression);select();});
+document.querySelectorAll('button[data-state]').forEach(b=>b.onclick=()=>{demo=false;mode(b.dataset.state,expression);});
+document.querySelectorAll('button[data-gesture]').forEach(b=>b.onclick=()=>{demo=false;entries.forEach(e=>e.performer.gesture(b.dataset.gesture));});
+document.querySelector('#stop').onclick=stop;
+document.querySelector('#demo').onclick=()=>{stop();demo=true;start=performance.now();document.querySelector('#demo').textContent='演示中…';};
+const scenes=[['idle','auto'],['listening','curious'],['thinking','auto'],['speaking','happy'],['speaking','surprised'],['idle','serious']];
+function tick(now){if(now-lastFrame>=30){lastFrame=now;if(demo){const scene=Math.floor((now-start)/3000)%scenes.length;if(scene!==lastScene){lastScene=scene;mode(...scenes[scene]);}}
+ const mouth=state==='speaking'?Math.max(0,Math.sin(now/95))*.65:0;
+ for(const e of entries){e.values=e.performer.update(now,mouth);e.core.update();}app.render();document.body.dataset.mouth=mouth;document.body.dataset.state=state;document.body.dataset.expression=expression;
+ }requestAnimationFrame(tick);}
+window.performanceReview={entries,mode,stop};window.reviewReady=true;document.querySelector('#status').textContent='已加载 · 呼吸和眨眼自动运行，表情可与说话、点头叠加。';requestAnimationFrame(tick);
+})().catch(e=>{window.reviewError=String(e);document.querySelector('#status').textContent='加载失败：'+e.message;});
+</script></html>

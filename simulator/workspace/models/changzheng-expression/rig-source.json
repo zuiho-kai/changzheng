@@ -1,0 +1,220 @@
+{
+  "canvas": 1254,
+  "neck_pivot": [
+    646,
+    510
+  ],
+  "neck_blend_y": [
+    440,
+    585
+  ],
+  "hair_tip_region_y": [
+    460,
+    1050
+  ],
+  "yaw_enabled": false,
+  "performance": "frontal expressions and gestures",
+  "parts": [
+    {
+      "id": "BodyHeadSkin",
+      "rect": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "vertices": 2116,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamHairSway",
+        "ParamBodyAngleZ"
+      ]
+    },
+    {
+      "id": "BrowLeft",
+      "rect": [
+        548,
+        268,
+        618,
+        296
+      ],
+      "vertices": 45,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamBrowLY",
+        "ParamBrowLAngle"
+      ]
+    },
+    {
+      "id": "BrowRight",
+      "rect": [
+        678,
+        268,
+        759,
+        299
+      ],
+      "vertices": 50,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamBrowRY",
+        "ParamBrowRAngle"
+      ]
+    },
+    {
+      "id": "EyeLeftOpen",
+      "rect": [
+        529,
+        302,
+        620,
+        374
+      ],
+      "vertices": 108,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeLOpen",
+        "ParamEyeLSmile",
+        "ParamSurprised"
+      ]
+    },
+    {
+      "id": "EyeRightOpen",
+      "rect": [
+        678,
+        302,
+        776,
+        374
+      ],
+      "vertices": 108,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeROpen",
+        "ParamEyeRSmile",
+        "ParamSurprised"
+      ]
+    },
+    {
+      "id": "EyeLeftSurprised",
+      "rect": [
+        529,
+        302,
+        620,
+        374
+      ],
+      "vertices": 108,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeLOpen",
+        "ParamEyeLSmile",
+        "ParamSurprised"
+      ]
+    },
+    {
+      "id": "EyeRightSurprised",
+      "rect": [
+        678,
+        302,
+        776,
+        374
+      ],
+      "vertices": 108,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeROpen",
+        "ParamEyeRSmile",
+        "ParamSurprised"
+      ]
+    },
+    {
+      "id": "EyeLeftClosed",
+      "rect": [
+        529,
+        335,
+        620,
+        372
+      ],
+      "vertices": 72,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeLOpen",
+        "ParamEyeLSmile"
+      ]
+    },
+    {
+      "id": "EyeRightClosed",
+      "rect": [
+        678,
+        335,
+        776,
+        372
+      ],
+      "vertices": 72,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamEyeROpen",
+        "ParamEyeRSmile"
+      ]
+    },
+    {
+      "id": "MouthClosed",
+      "rect": [
+        620,
+        407,
+        680,
+        441
+      ],
+      "vertices": 40,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamMouthOpenY",
+        "ParamMouthForm"
+      ]
+    },
+    {
+      "id": "MouthOpen",
+      "rect": [
+        620,
+        405,
+        681,
+        445
+      ],
+      "vertices": 48,
+      "controls": [
+        "ParamAngleY",
+        "ParamAngleZ",
+        "ParamBreath",
+        "ParamBodyAngleZ",
+        "ParamMouthOpenY",
+        "ParamMouthForm"
+      ]
+    }
+  ]
+}

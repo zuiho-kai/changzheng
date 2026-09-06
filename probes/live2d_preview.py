@@ -9,18 +9,24 @@ sys.path.insert(0, str(ROOT))
 from companion.secrets import get_key
 from companion.store import Store
 
-os.environ['SILICONFLOW_API_KEY'] = get_key()
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=17868)
 parser.add_argument('--reload', action='store_true')
+parser.add_argument('--avatar', choices=['hiyori', 'changzheng'], default='hiyori')
+parser.add_argument('--data-dir', type=Path, help='Optional isolated probe data directory')
+parser.add_argument('--credential-dir', type=Path, help='Directory containing the current user DPAPI provider.key')
 args = parser.parse_args()
-folder = ROOT / 'artifacts' / ('runtime-live2d-preview' if args.port == 17868 else f'runtime-live2d-preview-{args.port}')
+if args.credential_dir:
+    os.environ['CHANGZHENG_DATA_DIR'] = str(args.credential_dir)
+os.environ['SILICONFLOW_API_KEY'] = get_key()
+folder = args.data_dir or ROOT / 'artifacts' / ('runtime-live2d-preview' if args.port == 17868 else f'runtime-live2d-preview-{args.port}')
 folder.mkdir(parents=True, exist_ok=True)
 os.environ['CHANGZHENG_DATA_DIR'] = str(folder)
 store = Store(folder / 'companion.db')
-store.set_setting('avatar', 'live2d:hiyori')
+store.set_setting('avatar', f'live2d:{args.avatar}')
 store.set_setting('auto_memory', False)
-store.set_setting('voice', 'local:Microsoft Huihui Desktop')
+if not store.get_setting('voice'):
+    store.set_setting('voice', 'diana')
 store.conn.close()
 
 if __name__ == '__main__':

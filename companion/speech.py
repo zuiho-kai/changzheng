@@ -4,6 +4,31 @@ import uuid
 import math
 
 
+class DeliveryPrefix:
+    """Read the optional live expression tag across arbitrary model chunks."""
+    expressions = {'neutral', 'happy', 'curious', 'surprised', 'serious'}
+
+    def __init__(self):
+        self.buffer = ''
+        self.done = False
+        self.expression = 'neutral'
+
+    def feed(self, value, final=False):
+        if self.done:
+            return value
+        self.buffer += value
+        text = self.buffer.lstrip()
+        if not final and (not text or (text.startswith('[') and ']' not in text and len(text) < 24)):
+            return ''
+        match = re.match(r'^\[([a-z]+)\]\s*', text)
+        if match:
+            self.expression = match[1] if match[1] in self.expressions else 'neutral'
+            text = text[match.end():]
+        self.done = True
+        self.buffer = ''
+        return text
+
+
 def split_speech(text: str, limit: int = 18) -> list[str]:
     parts = []
     while text:

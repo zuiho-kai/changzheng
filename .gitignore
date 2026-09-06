@@ -11,3 +11,10 @@ dist/
 .pytest_cache/
 artifacts/runtime-*/
 *.log
+# Keep the tested simulator workspace in Git; local evidence stays on this machine.
+artifacts/*
+!artifacts/voice-review/
+artifacts/voice-review/*
+!artifacts/voice-review/audition-diana-curious.wav
+!artifacts/voice-review/audition-diana-tease.wav
+!artifacts/voice-review/live-upgrade-3.wav

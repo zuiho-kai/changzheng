@@ -1,0 +1,149 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "model.moc3",
+    "Textures": [
+      "textures/atlas.png"
+    ],
+    "Physics": "model.physics3.json",
+    "DisplayInfo": "model.cdi3.json",
+    "Motions": {
+      "Idle": [
+        {
+          "File": "model.idle.motion3.json"
+        }
+      ],
+      "Smile": [
+        {
+          "File": "model.smile.motion3.json"
+        },
+        {
+          "File": "model.smile.motion3.json"
+        }
+      ],
+      "Surprise": [
+        {
+          "File": "model.surprise.motion3.json"
+        }
+      ],
+      "Sad": [
+        {
+          "File": "model.sad.motion3.json"
+        }
+      ],
+      "Angry": [
+        {
+          "File": "model.angry.motion3.json"
+        }
+      ],
+      "Shy": [
+        {
+          "File": "model.shy.motion3.json"
+        }
+      ],
+      "Head_yaw": [
+        {
+          "File": "model.head_yaw.motion3.json"
+        }
+      ],
+      "Head_pitch": [
+        {
+          "File": "model.head_pitch.motion3.json"
+        }
+      ],
+      "Head_roll": [
+        {
+          "File": "model.head_roll.motion3.json"
+        }
+      ],
+      "Head_shake": [
+        {
+          "File": "model.head_shake.motion3.json"
+        }
+      ],
+      "Body_sway": [
+        {
+          "File": "model.body_sway.motion3.json"
+        }
+      ],
+      "Body_bow": [
+        {
+          "File": "model.body_bow.motion3.json"
+        }
+      ],
+      "Legs_swing": [
+        {
+          "File": "model.legs_swing.motion3.json"
+        }
+      ],
+      "Legs_sway": [
+        {
+          "File": "model.legs_sway.motion3.json"
+        }
+      ],
+      "Talk": [
+        {
+          "File": "model.talk.motion3.json"
+        }
+      ],
+      "Smirk": [
+        {
+          "File": "model.smirk.motion3.json"
+        }
+      ],
+      "Cheek": [
+        {
+          "File": "model.cheek.motion3.json"
+        }
+      ],
+      "Look": [
+        {
+          "File": "model.look.motion3.json"
+        }
+      ],
+      "Blink": [
+        {
+          "File": "model.blink.motion3.json"
+        }
+      ],
+      "Brows": [
+        {
+          "File": "model.brows.motion3.json"
+        }
+      ],
+      "Brow_form": [
+        {
+          "File": "model.brow_form.motion3.json"
+        }
+      ],
+      "Sweep": [
+        {
+          "File": "model.sweep.motion3.json"
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ],
+  "HitAreas": [
+    {
+      "Id": "10_face_base",
+      "Name": "Head"
+    }
+  ]
+}

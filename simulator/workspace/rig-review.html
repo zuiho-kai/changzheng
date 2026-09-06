@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>长征酱 · 手工绑定对照</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f2eb;color:#43513d;font:15px system-ui}main{max-width:1160px;margin:auto;padding:25px}h1{font-size:24px;margin:0 0 8px}p{color:#78826f;line-height:1.6}.models{display:grid;grid-template-columns:1fr 1fr;gap:20px}.card{background:#e8ecdf;border:1px solid #dbe0d1;border-radius:18px;overflow:hidden}.card h2{font-size:15px;margin:18px;text-align:center}.view{height:560px;position:relative}.view canvas{width:100%;height:100%;display:block}.controls{display:flex;flex-wrap:wrap;gap:20px;background:#fffdf7;padding:20px;margin-top:18px;border-radius:14px}label{display:flex;align-items:center;gap:8px}input[type=range]{width:125px;accent-color:#81906e}button,a{background:#82946f;border:0;border-radius:8px;color:white;padding:9px 15px;text-decoration:none;cursor:pointer}#status{font-size:12px}small{color:#85917c}@media(max-width:700px){.models{grid-template-columns:1fr}.view{height:440px}}
+</style><main><h1>长征酱 · 形变试作对照</h1><p>当前转头外观尚未合格，已用你的 2000 模型定位拆层与关键形态的差距。</p><p><a href="http://127.0.0.1:17871/">打开 2000 参考对照</a></p>
+<div class="models"><section class="card"><h2>上一版 · 自动绑定</h2><div id="old" class="view"></div></section><section class="card"><h2>当前 · 网格形变试作</h2><div id="new" class="view"></div></section></div>
+<div class="controls"><label>转头<input id="yaw" type="range" min="-30" max="30" value="0"></label><label>歪头<input id="roll" type="range" min="-30" max="30" value="0"></label><label>眼睛<input id="eye" type="range" min="0" max="1" step=".01" value="1"></label><label>嘴型<input id="mouth" type="range" min="0" max="1" step=".01" value="0"></label><button id="demo">播放动作演示</button><button id="reset">回到自然表情</button><a href="/">进入桌宠</a></div><p id="status">正在加载两版模型…</p><small>这是小幅度半身绑定。大角度侧脸、独立发束物理仍需进一步制作。</small></main>
+<script src="/static/vendor/pixi-6.5.10.min.js"></script><script src="/static/vendor/live2dcubismcore.min.js"></script><script src="/static/vendor/cubism4-0.4.0.min.js"></script>
+<script>
+(async()=>{
+const stages=[];let demo=false,start=performance.now();
+const host=document.querySelector('.models');host.style.position='relative';
+const app=new PIXI.Application({width:host.clientWidth,height:560,backgroundAlpha:0,antialias:true,resolution:Math.min(devicePixelRatio,2)});app.ticker.stop();
+app.view.style.cssText='position:absolute;left:0;top:55px;width:100%;height:560px;pointer-events:none';host.append(app.view);
+for(const [id,path,box] of [['old','changzheng-v2',[236/768,17/768,290/768,735/768*.45]],['new','changzheng',[130/1254,28/1254,980/1254,1226/1254*.83]]]){
+const el=document.getElementById(id),offset=el.getBoundingClientRect().left-host.getBoundingClientRect().left;
+const model=await PIXI.live2d.Live2DModel.from('/static/models/'+path+'/model.model3.json',{autoInteract:false,autoUpdate:false});app.stage.addChild(model);
+const w=model.width,h=model.height;model.anchor.set(0,0);const s=Math.min(el.clientWidth/(w*box[2]),el.clientHeight/(h*box[3]))*.95;model.scale.set(s);model.position.set(offset+(el.clientWidth-w*box[2]*s)/2-w*box[0]*s,12-h*box[1]*s);const mask=new PIXI.Graphics();mask.beginFill(0xffffff).drawRect(offset,0,el.clientWidth,560).endFill();app.stage.addChild(mask);model.mask=mask;
+stages.push({app,core:model.internalModel.coreModel});}
+const fields=['yaw','roll','eye','mouth'];for(const id of fields)document.getElementById(id).oninput=()=>{demo=false;document.getElementById('demo').textContent='播放动作演示'};
+document.getElementById('demo').onclick=()=>{demo=!demo;start=performance.now();document.getElementById('demo').textContent=demo?'暂停动作演示':'播放动作演示'};
+document.getElementById('reset').onclick=()=>{demo=false;for(const id of fields)document.getElementById(id).value=id==='eye'?1:0;document.getElementById('demo').textContent='播放动作演示'};
+function draw(now){const t=(now-start)/1000,phase=t%4.7;const values={ParamAngleX:+yaw.value,ParamAngleZ:+roll.value,ParamEyeLOpen:+eye.value,ParamEyeROpen:+eye.value,ParamMouthOpenY:+mouth.value};if(demo){values.ParamAngleX=Math.sin(t*.55)*12;values.ParamAngleZ=Math.sin(t*.37)*6;values.ParamEyeLOpen=values.ParamEyeROpen=phase<.28?Math.abs(phase-.14)/.14:1;values.ParamMouthOpenY=t%6<3.5?Math.max(0,Math.sin(t*10))*.65:0;}for(const {app,core} of stages){for(const [id,value]of Object.entries(values))core.setParameterValueById(id,value);core.update();}app.render();requestAnimationFrame(draw)}
+window.reviewReady=true;document.getElementById('status').textContent='两版已加载。滑杆同时驱动两版，便于直接比较。';requestAnimationFrame(draw);
+})().catch(e=>document.getElementById('status').textContent='加载失败：'+e.message);
+</script></html>

@@ -9,7 +9,7 @@ You are the authoring agent. The package provides deterministic tools, native ba
 
 ## Begin
 
-Run `cz-img2live2d doctor`. Explicitly configure missing engine roots using `configure`; pinned repositories and install commands are in the package README. Do not assume the parent Changzheng `.reference/` or credentials exist on another machine.
+Run `cz-img2live2d doctor`. Explicitly configure missing engine roots using `configure`; pinned repositories and install commands are in the package USAGE.md. Do not assume the parent Changzheng `.reference/` or credentials exist on another machine.
 
 Create a separate project per character with `init --image <image> --project <new-dir>` or `init --psd <psd> --project <new-dir>`. An image-only project returns `needs_assets`: inspect the supplied art and prepare an aligned layered PSD using available decomposition/image editing tools. Preserve identity, canvas, pose and overlap. Check actual pixels and alpha after edits; prompt instructions are not proof of alignment or transparency. Attach with `assets --project <dir> --psd <file>`.
 

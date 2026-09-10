@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cz-img2live2d"
 version = "0.1.0"
 description = "Agent toolkit combining Changzheng, PuppetLoom and Anime2.5DRig"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["Pillow>=10", "numpy>=1.26", "pydantic>=2.6"]
 
@@ -22,5 +23,5 @@ where = ["src"]
 cz_img2live2d = ["*.json", "*.cjs", "*.js", "*.html", "*.txt"]
 
 [tool.setuptools.data-files]
-"share/cz-img2live2d" = ["README.md", "THIRD_PARTY.md", "ACCEPTANCE.md"]
+"share/cz-img2live2d" = ["README.md", "USAGE.md", "THIRD_PARTY.md", "ACCEPTANCE.md"]
 "share/cz-img2live2d/skills/cz-img2live2d" = ["skills/cz-img2live2d/SKILL.md"]

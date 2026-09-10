@@ -20,7 +20,7 @@
 
 ## 实际画面与证据
 
-本机总入口：[排练录像](../../artifacts/runtime-cz-img2live2d/review.html)。以下均在 17874 模拟器独立子目录实录，使用 Chromium SwiftShader；不是桌面 GPU 性能测试。
+本机总入口：[排练录像](../../artifacts/runtime-cz-img2live2d/review.html)。本节的录像和报告保留在开发机，未上传仓库或安装包，因此这些本地证据链接在 GitHub 上不可访问。以下均在 17874 模拟器独立子目录实录，使用 Chromium SwiftShader；不是桌面 GPU 性能测试。
 
 - 小征：[报告](../../artifacts/runtime-cz-img2live2d/changzheng/reviews/changzheng-7d443a0a33/report.json)。约 30 秒状态与 PCM 排练，参数响应/停止归零通过。序列抽帧可见张嘴、身体/头发跟随；没有在这些抽帧中看到此前那种脸突然放大。
 - PSD A / Anime：[报告](../../artifacts/runtime-cz-img2live2d/sample-a/reviews/anime25d-0ddb669ffe/report.json)。已查看相同设置构建的连续序列和嘴型图，眨眼、开闭嘴及头发运动可见。最后一次复测增加了“等待设置加载完毕再 ready”的修正。
@@ -36,4 +36,4 @@
 - PuppetLoom Cubism exporter 尚未安装验证。本轮没有它导出的 `.cmo3/.moc3`，也没有 VTube Studio、摄像头、麦克风、Spout2 或线上 TTS 实测。
 - 只中转图层和补件，未实现 Anime 参数、物理和精调结果到 PuppetLoom 的无损迁移。
 - 当前两份 PuppetLoom 样例采用原生保守绑定。没有为了宣称功能齐全而修改其 disabled features。
-- 直播目录与 17870 服务未修改；没有推送或发布。
+- 上述制作验收未修改直播目录与 17870 服务。源码和安装包发布不代表已将模型部署到直播环境。

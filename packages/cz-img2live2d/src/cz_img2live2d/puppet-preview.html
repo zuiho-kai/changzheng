@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>cz-img2live2d · PuppetLoom</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#e8e6df}canvas{display:block;width:100%;height:100%}</style>
+<canvas id="model"></canvas><script type="module">
+import {PuppetLoomWebPlayer} from './puppetloom-web.js';
+window.cz={ready:false,error:null};
+try{
+const player=await PuppetLoomWebPlayer.create({canvas:document.querySelector('canvas'),projectUrl:'model/puppetloom.json',pointerLook:false});
+let motion={mouthOpen:0};
+window.cz={ready:true,error:null,
+setState(state){motion=state==='listening'?{mouthOpen:0,gazeX:.35}:state==='thinking'?{mouthOpen:0,gazeY:-.3}:{mouthOpen:0};player.setMotion(motion);},
+mouth(value){motion.mouthOpen=value;player.setMotion(motion);},
+stats(){const s=player.renderer.motionState;return {mouth:s?.mouthOpen??0,head:s?.headRoll??0,layers:player.project.layers.length};}};
+}catch(error){window.cz.error=String(error);}
+</script>

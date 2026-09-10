@@ -1,0 +1,5 @@
+{
+  "puppetloom": {"url": "https://github.com/CheshireMew/PuppetLoom", "commit": "f26c83dd31a48c644eb962971b9e21b9fa06f3f4", "entry": "apps/cli/dist/index.js", "license": "AGPL-3.0-or-later"},
+  "anime25d": {"url": "https://github.com/852wa/Anime2.5DRig", "commit": "7450341934a8ff77bf05b90d9f708786e3eb3996", "entry": "lib/rigger.js", "license": "MIT"},
+  "moc3": {"url": "https://github.com/Wzhang3912/image2live2d", "commit": "b3fea7536f2d680897dbf5cce5a13046da75803c", "entry": "src/image2live2d/backends/live2d/moc3_emit.py", "license": "Apache-2.0"}
+}

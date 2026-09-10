@@ -1,0 +1,10 @@
+{
+  "note": "Extracted from local simulator snapshot including face-region fix, 2026-09-10; frontend source may be uncommitted. Build script adapted only for explicit input/output/dependency paths.",
+  "sha256": {
+    "web/models/changzheng/model.idle.motion3.json": "5c620c75cf5821e84e13fc7faea14a1071d7d1a339b14150518d9a6cbcd0c788",
+    "simulator/workspace/avatar-performance.js": "bc18b2d9e1744ba9c58808014728dba660660a046f18a3077a62592e356c7891",
+    "simulator/workspace/secondary-motion.js": "aac8b2d1f23531f75c1c1f5b07f3c5212c14abd995619f7585bd91578968b235",
+    "simulator/workspace/vendor/ANIME25D-LICENSE.txt": "15183bfbec774052a5817a28eb03730c40ec941a642097b597f0c50092594adb",
+    "probes/build_expression_rig.py": "38a1db4a299b2115ca200047da4b74a72af6d82540f5124bc4391ff811c5eef3"
+  }
+}

@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><title>cz-img2live2d · Changzheng</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#e8e6df}canvas{display:block}</style>
+<body>
+<script src="vendor/pixi-6.5.10.min.js"></script>
+<script src="vendor/live2dcubismcore.min.js"></script>
+<script src="vendor/cubism4-0.4.0.min.js"></script>
+<script src="secondary-motion.js"></script><script src="avatar-performance.js"></script>
+<script>
+window.cz={ready:false,error:null};
+(async()=>{try{
+const app=new PIXI.Application({width:innerWidth,height:innerHeight,backgroundAlpha:0,antialias:true});
+document.body.appendChild(app.view);app.ticker.maxFPS=30;
+const model=await PIXI.live2d.Live2DModel.from('model/model.model3.json',{autoInteract:false});
+app.stage.addChild(model);model.anchor.set(.5,1);
+model.scale.set(Math.min(innerWidth*.9/model.width,innerHeight*.94/model.height));
+model.position.set(innerWidth/2,innerHeight*.98);
+const rest={x:model.x,y:model.y},core=model.internalModel.coreModel,performer=new AvatarPerformance(core);
+let mouth=0,last=0,applied={};
+window.cz={ready:true,error:null,setState(s){performer.setState(s);if(s==='listening')performer.notice();},
+mouth(v){mouth=Math.max(0,Math.min(1,v));last=performance.now();},
+stats(){return {mouth:applied.ParamMouthOpenY||0,head:applied.ParamAngleZ||0,
+mouthOpenOpacity:core._model.drawables.opacities[core._model.drawables.ids.indexOf('MouthOpen')],
+layers:core._model.drawables.count,contextLost:app.renderer.gl.isContextLost()};}};
+model.internalModel.on('beforeModelUpdate',()=>{const now=performance.now(),v=now-last>250?0:mouth;
+applied=performer.update(now,v);core.setParameterValueById('ParamMouthOpenY',v);
+model.position.set(rest.x+(performer.offset?.x||0)*innerHeight,rest.y+(performer.offset?.y||0)*innerHeight);});
+}catch(e){window.cz.error=String(e);}})();
+</script>

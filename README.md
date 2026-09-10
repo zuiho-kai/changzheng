@@ -1,6 +1,6 @@
 # 小征 · 本地个人助手
 
-图片转动态角色的 agent 工具箱已整理为独立子项目：[cz-img2live2d](packages/cz-img2live2d/README.md)。它连接 PuppetLoom 的绑定精调、Anime2.5DRig 的补件和长征的排练能力，帮助 agent 从分层素材构建、检查并继续修改角色；当前为实验版。
+图片转动态角色的 agent 工具箱已发布到独立仓库：[cz-img2live2d](https://github.com/zuiho-kai/cz-img2live2d)。它连接 PuppetLoom 的绑定精调、Anime2.5DRig 的补件和长征的排练能力，帮助 agent 从分层素材构建、检查并继续修改角色；当前为实验版。
 
 直播画面与动作调试使用[离线模拟器](simulator/README.md)：运行 `启动模拟器.ps1`，访问 <http://127.0.0.1:17874/sim>。仓库包含最新排练副本、模型和三段测试语音。
 

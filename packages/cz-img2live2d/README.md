@@ -1,5 +1,7 @@
 # cz-img2live2d
 
+> 已迁移到独立仓库：[zuiho-kai/cz-img2live2d](https://github.com/zuiho-kai/cz-img2live2d)。最新源码、安装说明和 Release 请使用独立仓库；此目录保留拆分时的历史版本。
+
 **让 AI agent 把角色图片一步步做成能动、能检查、能继续修改的模型。**
 
 这是从「小征」制作过程中整理出来的工具箱，把长征已有的模型制作与排练能力、PuppetLoom 的绑定与精调、Anime2.5DRig 的识别与补件接在一起。你可以让 Codex 等 agent 操作它，自己看效果、提修改意见，不必在几个工具之间反复搬文件。
@@ -71,6 +73,6 @@ cz-img2live2d build --project work/character --backend puppetloom
 - [使用指南](USAGE.md)：完整安装、补件中转、精调、排练和导出命令。
 - [实测记录](ACCEPTANCE.md)：两个 PSD 样例、小征模板、安装与重建测试，以及尚未验证的部分。
 - [依赖与许可](THIRD_PARTY.md)：上游来源、锁定版本和许可说明。
-- [下载首版安装包](https://github.com/zuiho-kai/changzheng/releases/tag/cz-img2live2d-v0.1.0)：GitHub Release 提供 wheel 和源码包，尚未发布到 PyPI。
+- [下载首版安装包](https://github.com/zuiho-kai/cz-img2live2d/releases/tag/v0.1.0)：GitHub Release 提供 wheel 和源码包，尚未发布到 PyPI。
 
 已完成的排练使用真实录音数据驱动口型，并保存连续画面；录像本身没有声音。两份 PSD 样例和专用模板的成功不代表所有角色都可用，动画自然度仍需要看实际效果。
